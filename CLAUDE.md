@@ -123,7 +123,7 @@ docker compose exec lila ./lila.sh playRoutes
 ### Phase 1: 환경 설정 ✅
 - [x] GitHub 포크 (chess-opening-duel, lila, scalachess, chessground)
 - [x] Submodule 연결
-- [ ] Full 모드 설정 및 빌드 확인
+- [x] Full 모드 설정 및 빌드 확인
 
 ### Phase 2: 코드베이스 분석
 - [ ] 기존 variant 구현 분석 (Chess960, Crazyhouse)
