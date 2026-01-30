@@ -188,40 +188,27 @@ repos/chessground/assets/chessground.css         # 테마
 
 Full 모드 설정시 자동 생성됨. 기본 비밀번호: `password`
 
+## 버전 관리 정책
+
+- **메인 저장소 (chess-opening-duel)**: 태그로 버전 관리 (`v1.0.0`, `v1.1.0` 등)
+- **컴포넌트 (lila, chessground, scalachess)**: 별도 태그 없이 master에 직접 커밋
+  - 메인 저장소가 submodule 커밋을 추적하므로 버전 정보 보존됨
+
 ## Git 워크플로우
 
-### 저장소 클론 (처음 설정)
+### 저장소 클론
 ```bash
 git clone --recursive https://github.com/Ootzk/chess-opening-duel.git
 cd chess-opening-duel
-
-# 또는 이미 클론한 경우
-git submodule update --init --recursive
-```
-
-### Submodule 구조
-```
-repos/
-├── lila/        → Ootzk/chess-opening-duel-lila (메인 서버)
-├── chessground/ → Ootzk/chess-opening-duel-chessground (보드 UI)
-└── scalachess/  → Ootzk/chess-opening-duel-scalachess (체스 엔진)
-```
-
-### 메인 저장소 작업
-```bash
-cd chess-opening-duel
-git add .
-git commit -m "Update config"
-git push origin main
 ```
 
 ### Submodule 작업 (예: lila)
 ```bash
 cd repos/lila
-git checkout -b feature/opening-duel
-# ... 코드 수정 ...
-git commit -m "Add opening duel feature"
-git push origin feature/opening-duel
+# master에서 직접 작업
+git add .
+git commit -m "Add feature"
+git push origin master
 
 # 메인 저장소에 submodule 변경 반영
 cd ../..
@@ -230,22 +217,12 @@ git commit -m "Update lila submodule"
 git push origin main
 ```
 
-### Submodule 최신화
-```bash
-# 모든 submodule을 원격의 최신 커밋으로 업데이트
-git submodule update --remote --merge
-
-# 특정 submodule만 업데이트
-git submodule update --remote --merge repos/lila
-```
-
 ### Upstream (lichess-org) 동기화
 ```bash
-# lila 예시: upstream 추가 및 동기화
 cd repos/lila
 git remote add upstream https://github.com/lichess-org/lila.git
 git fetch upstream
-git merge upstream/master  # 또는 rebase
+git merge upstream/master
 ```
 
 ## 참고 자료
