@@ -122,9 +122,8 @@ docker compose exec lila ./lila.sh playRoutes
 
 ### Phase 1: 환경 설정 ✅
 - [x] GitHub 포크 (chess-opening-duel, lila, scalachess, chessground)
-- [ ] Full 모드 설정
-- [ ] Submodule 연결
-- [ ] 빌드 확인
+- [x] Submodule 연결
+- [ ] Full 모드 설정 및 빌드 확인
 
 ### Phase 2: 코드베이스 분석
 - [ ] 기존 variant 구현 분석 (Chess960, Crazyhouse)
@@ -191,14 +190,33 @@ Full 모드 설정시 자동 생성됨. 기본 비밀번호: `password`
 
 ## Git 워크플로우
 
+### 저장소 클론 (처음 설정)
 ```bash
-# 메인 저장소 작업
+git clone --recursive https://github.com/Ootzk/chess-opening-duel.git
+cd chess-opening-duel
+
+# 또는 이미 클론한 경우
+git submodule update --init --recursive
+```
+
+### Submodule 구조
+```
+repos/
+├── lila/        → Ootzk/chess-opening-duel-lila (메인 서버)
+├── chessground/ → Ootzk/chess-opening-duel-chessground (보드 UI)
+└── scalachess/  → Ootzk/chess-opening-duel-scalachess (체스 엔진)
+```
+
+### 메인 저장소 작업
+```bash
 cd chess-opening-duel
 git add .
 git commit -m "Update config"
 git push origin main
+```
 
-# Submodule 작업 (예: lila)
+### Submodule 작업 (예: lila)
+```bash
 cd repos/lila
 git checkout -b feature/opening-duel
 # ... 코드 수정 ...
@@ -210,6 +228,24 @@ cd ../..
 git add repos/lila
 git commit -m "Update lila submodule"
 git push origin main
+```
+
+### Submodule 최신화
+```bash
+# 모든 submodule을 원격의 최신 커밋으로 업데이트
+git submodule update --remote --merge
+
+# 특정 submodule만 업데이트
+git submodule update --remote --merge repos/lila
+```
+
+### Upstream (lichess-org) 동기화
+```bash
+# lila 예시: upstream 추가 및 동기화
+cd repos/lila
+git remote add upstream https://github.com/lichess-org/lila.git
+git fetch upstream
+git merge upstream/master  # 또는 rebase
 ```
 
 ## 참고 자료

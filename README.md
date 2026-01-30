@@ -1,37 +1,58 @@
-# lila-docker
+# Chess Opening Duel
 
-[![Publish Image](https://github.com/lichess-org/lila-docker/actions/workflows/publish-image.yml/badge.svg)](https://github.com/lichess-org/lila-docker/actions/workflows/publish-image.yml)
+Lichess 기반 커스텀 체스 게임. **특정 오프닝으로 승리해야 하는** 1:1 대결 모드.
 
-Lichess development environment using Docker Compose, for developing on Mac, Linux, or Windows (via WSL).
+> 이 프로젝트는 [lila-docker](https://github.com/lichess-org/lila-docker)를 포크하여 개발됩니다.
 
-The only requirement for running on your local machine is Docker Desktop, and optionally git. All the other dependencies (Scala, MongoDB, Node.js, etc) are installed and run in Docker containers.
+## 게임 컨셉
 
-![image](https://github.com/user-attachments/assets/0192574a-4cb7-42da-a19e-e75af24b0565)
+- 1v1 매칭 → 오프닝 밴픽 → 5판 3선승
+- 정해진 오프닝 풀에서 각자 밴 → 남은 오프닝으로 대결
+- 기본 체스 룰 유지, 승리 조건만 커스텀 (특정 오프닝 완성 시 승리)
 
-## Instructions
+## 설치 방법
 
-1. Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) and have it running
+### 요구사항
 
-1. Clone this repo:
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (실행 중이어야 함)
+- Git
+- 12GB+ RAM (lila 빌드용)
 
-    ```bash
-    git clone https://github.com/lichess-org/lila-docker
-    ```
+### 저장소 클론
 
-1. Start the services
+```bash
+# --recursive로 submodule까지 함께 클론
+git clone --recursive https://github.com/Ootzk/chess-opening-duel.git
+cd chess-opening-duel
 
-    ```bash
-    cd lila-docker
-    ./lila-docker start
-    ```
+# 이미 클론했다면 submodule 초기화
+git submodule update --init --recursive
+```
 
-    Then complete the dialog to set up lila-docker.
+### 서비스 시작
 
-    Starting new services may take 5-10 minutes. Some services will start before others and you may see errors in the logs until everything comes online.
+```bash
+./lila-docker start
+```
 
-    Lila requires about 12GB of RAM to build. Make sure there is enough RAM available, especially when using Docker Desktop, which allocates 50% of the available RAM by default.
+설정 마법사가 나타나면 **Advanced** 모드를 선택하세요 (코드 수정을 위해).
 
-    Lila will be the last service to complete, at which point you can visit http://localhost:8080/ to see the site.
+첫 시작 시 5-15분 소요됩니다. 완료되면 http://localhost:8080/ 에서 사이트를 확인할 수 있습니다.
+
+## 프로젝트 구조
+
+```
+chess-opening-duel/                 # 메인 저장소 (lila-docker 포크)
+├── compose.yml                     # Docker 구성
+├── conf/                           # 설정 파일
+├── docker/                         # Dockerfile들
+└── repos/                          # Git submodules
+    ├── lila/                       → chess-opening-duel-lila (메인 서버)
+    ├── chessground/                → chess-opening-duel-chessground (보드 UI)
+    └── scalachess/                 → chess-opening-duel-scalachess (체스 엔진)
+```
+
+자세한 개발 가이드는 [CLAUDE.md](CLAUDE.md)를 참고하세요.
 
 ### Stopping
 
