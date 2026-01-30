@@ -278,6 +278,19 @@ git fetch upstream
 git merge upstream/master
 ```
 
+### 릴리스 절차
+```bash
+# 1. release → main PR merge (merge commit) 후
+# 2. 태그 생성 + GitHub Release 작성
+gh release create v{version} --target main --generate-notes --notes "## Summary
+- 주요 변경 사항 요약
+"
+
+# --generate-notes: PR 기반 자동 변경 내역 생성
+# --notes: 추가 설명 (요약)
+# --draft: 초안으로 생성 (검토 후 publish)
+```
+
 ## 참고 자료
 
 - [Lichess GitHub](https://github.com/lichess-org)
