@@ -243,8 +243,8 @@ cd chess-opening-duel
 ### 메인 저장소 작업
 ```bash
 # 1. release 브랜치가 없으면 생성
-git switch -c release/v1.0.0
-git push -u origin release/v1.0.0
+git switch -c release/{next_version}
+git push -u origin release/{next_version}
 
 # 2. feature 브랜치에서 작업
 git switch -c feature/my-feature
