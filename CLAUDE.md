@@ -190,8 +190,11 @@ Full 모드 설정시 자동 생성됨. 기본 비밀번호: `password`
 
 ## 버전 관리 정책
 
-- **메인 저장소 (chess-opening-duel)**: 태그로 버전 관리 (`v1.0.0`, `v1.1.0` 등)
-- **컴포넌트 (lila, chessground, scalachess)**: 별도 태그 없이 master에 직접 커밋
+- **메인 저장소 (chess-opening-duel)**
+  - 태그로 버전 관리 (`v1.0.0`, `v1.1.0` 등)
+  - **main에 직접 push 금지** → feature 브랜치 → PR로 merge
+- **컴포넌트 (lila, chessground, scalachess)**
+  - 별도 태그 없이 master에 직접 커밋
   - 메인 저장소가 submodule 커밋을 추적하므로 버전 정보 보존됨
 
 ## 커밋 메시지 규칙
@@ -223,19 +226,28 @@ git clone --recursive https://github.com/Ootzk/chess-opening-duel.git
 cd chess-opening-duel
 ```
 
+### 메인 저장소 작업
+```bash
+git switch -c feature/my-feature
+# 작업 후
+git add .
+git commit -m "✨ Add feature"
+git push -u origin feature/my-feature
+# GitHub에서 PR 생성 → merge
+```
+
 ### Submodule 작업 (예: lila)
 ```bash
 cd repos/lila
 # master에서 직접 작업
 git add .
-git commit -m "Add feature"
+git commit -m "✨ Add feature"
 git push origin master
 
 # 메인 저장소에 submodule 변경 반영
 cd ../..
 git add repos/lila
-git commit -m "Update lila submodule"
-git push origin main
+git commit -m "📦 Update lila submodule"
 ```
 
 ### Upstream (lichess-org) 동기화
