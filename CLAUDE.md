@@ -190,12 +190,26 @@ Full 모드 설정시 자동 생성됨. 기본 비밀번호: `password`
 
 ## 버전 관리 정책
 
+**Release Branch Workflow** 사용:
+```
+feature/* ──(squash merge)──► release/{version} ──(merge commit)──► main
+```
+
 - **메인 저장소 (chess-opening-duel)**
   - 태그로 버전 관리 (`v1.0.0`, `v1.1.0` 등)
-  - **main에 직접 push 금지** → feature 브랜치 → PR로 merge
+  - main, release/* 브랜치 보호 (직접 push 금지)
+  - feature → release: **Squash merge**
+  - release → main: **Merge commit**
 - **컴포넌트 (lila, chessground, scalachess)**
   - 별도 태그 없이 master에 직접 커밋
   - 메인 저장소가 submodule 커밋을 추적하므로 버전 정보 보존됨
+
+### GitHub Branch Rulesets
+
+| Ruleset | 대상 | 규칙 |
+|---------|------|------|
+| Protect main | `main` | deletion 금지, force push 금지, PR 필수 (merge commit only) |
+| Features to release | `release/*` | deletion 금지, force push 금지, PR 필수 (squash only) |
 
 ## 커밋 메시지 규칙
 
@@ -228,12 +242,18 @@ cd chess-opening-duel
 
 ### 메인 저장소 작업
 ```bash
+# 1. release 브랜치가 없으면 생성
+git switch -c release/v1.0.0
+git push -u origin release/v1.0.0
+
+# 2. feature 브랜치에서 작업
 git switch -c feature/my-feature
-# 작업 후
 git add .
 git commit -m "✨ Add feature"
 git push -u origin feature/my-feature
-# GitHub에서 PR 생성 → merge
+
+# 3. GitHub에서 PR 생성: feature → release (squash merge)
+# 4. 릴리스 준비 완료시 PR 생성: release → main (merge commit)
 ```
 
 ### Submodule 작업 (예: lila)
