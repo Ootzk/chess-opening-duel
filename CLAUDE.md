@@ -134,12 +134,12 @@ docker compose exec lila ./lila.sh playRoutes
 - [ ] OpeningChallenge variant 생성 (scalachess)
 - [ ] 오프닝 검증 로직
 - [x] Match 모델 (5판 3선승) - v1.1.0
-- [ ] 랜덤 오프닝 프리셋 - v1.3.0 (계획)
-- [ ] 밴픽 시스템
+- [x] 랜덤 오프닝 프리셋 - v1.3.0
+- [ ] 밴픽 시스템 - v1.4.0 (계획)
 
 ### Phase 4: UI 구현 (진행중)
 - [ ] 불필요한 UI 제거 (퍼즐, 대회, 학습 등)
-- [ ] 오프닝 밴픽 UI
+- [ ] 오프닝 밴픽 UI - v1.4.0 (계획)
 - [x] 매치 진행 상황 표시 - v1.2.0
 - [ ] 브랜딩 변경
 
@@ -149,7 +149,65 @@ docker compose exec lila ./lila.sh playRoutes
 
 ## 릴리스 내역
 
-### v1.3.0 - Random Opening Presets (계획)
+### v1.4.0 - Ban/Pick System (계획)
+
+매치 시작 전 밴픽 시스템으로 전략적 오프닝 선택.
+
+**밴픽 플로우:**
+```
+[Pre-game Phase - 매치 시작 전]
+
+1. Pick Phase (30초)
+   - 10개 프리셋 중 최대 5개 토글 선택
+   - 두 플레이어 동시 진행 (턴 없음)
+   - 5개 미만 선택 시 랜덤으로 채움
+
+2. Ban Phase (30초)
+   - 상대의 픽 중 최대 2개 토글 선택
+   - 두 플레이어 동시 진행
+   - 2개 미만 선택 시 랜덤으로 채움
+   → 결과: 각자 3개 오프닝 보유, 밴된 오프닝 4개
+
+[Game 1]
+- 밴된 4개 오프닝 중 랜덤 선택
+
+[Game 2~5]
+- 전 경기 패자가 자기 픽 오프닝 선택 (별도 화면, 30초)
+- 타임아웃 또는 무승부 시: 밴된 오프닝 중 랜덤
+```
+
+**구현 범위:**
+
+| 영역 | 작업 |
+|------|------|
+| Match 모델 | picks, bans, phase 필드 추가 |
+| 밴픽 API | `/match/{id}/pick`, `/match/{id}/ban` |
+| 밴픽 UI | 별도 페이지 `/match/{id}/pick`에서 오프닝 선택/밴 |
+| 게임 시작 로직 | 랜덤/패자 선택 분기 처리 |
+| 오프닝 선택 UI | 패자가 다음 게임 오프닝 선택 |
+| WebSocket | 실시간 밴픽 상태 동기화 |
+
+**예상 데이터 구조:**
+```scala
+case class Match(
+  // 기존 필드...
+  phase: Phase,  // Picking | Banning | Playing | Finished
+  picks: Picks,  // { white: List[Opening], black: List[Opening] }
+  bans: Bans,    // { white: List[Opening], black: List[Opening] }
+)
+```
+
+**생성/수정 예정 파일:**
+```
+repos/lila/modules/match/src/main/Match.scala       # phase, picks, bans 추가
+repos/lila/modules/match/src/main/MatchApi.scala    # 밴픽 로직
+repos/lila/app/controllers/Match.scala              # 밴픽 API (신규)
+repos/lila/app/views/match/pick.scala               # 밴픽 UI (신규)
+repos/lila/ui/match/                                # 밴픽 프론트엔드 (신규)
+repos/lila/conf/routes                              # 라우트 추가
+```
+
+### v1.3.0 - Random Opening Presets
 - 각 게임이 랜덤 오프닝 프리셋(FEN)으로 시작
 - 10개 오프닝 풀에서 매치당 5개 선택 (중복 없음)
 - FromPosition variant 사용
