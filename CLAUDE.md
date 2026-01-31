@@ -125,43 +125,79 @@ docker compose exec lila ./lila.sh playRoutes
 - [x] Submodule 연결
 - [x] Full 모드 설정 및 빌드 확인
 
-### Phase 2: 코드베이스 분석
-- [ ] 기존 variant 구현 분석 (Chess960, Crazyhouse)
-- [ ] 게임 생성 → 진행 → 종료 플로우 추적
-- [ ] Challenge 시스템 이해
+### Phase 2: 코드베이스 분석 ✅
+- [x] 기존 variant 구현 분석 (Chess960, Crazyhouse)
+- [x] 게임 생성 → 진행 → 종료 플로우 추적
+- [x] Challenge 시스템 이해
 
-### Phase 3: 백엔드 구현
+### Phase 3: 백엔드 구현 (진행중)
 - [ ] OpeningChallenge variant 생성 (scalachess)
 - [ ] 오프닝 검증 로직
-- [ ] Match 모델 (5판 3선승)
+- [x] Match 모델 (5판 3선승) - v1.1.0
 - [ ] 밴픽 시스템
 
-### Phase 4: UI 구현
+### Phase 4: UI 구현 (진행중)
 - [ ] 불필요한 UI 제거 (퍼즐, 대회, 학습 등)
 - [ ] 오프닝 밴픽 UI
-- [ ] 매치 진행 상황 표시
+- [x] 매치 진행 상황 표시 - v1.2.0
 - [ ] 브랜딩 변경
 
 ### Phase 5: 배포
 - [ ] Docker 이미지 빌드
 - [ ] 클라우드 배포 (Railway/Fly.io)
 
-## 핵심 수정 파일
+## 릴리스 내역
 
-### 새로 생성
+### v1.2.0 - Match Score UI
+- 게임 화면에서 crosstable 대신 Match Score 테이블 표시
+- 각 게임 결과(1/0/½)를 클릭 가능한 링크로 표시
+- "Opening Duel - Game n of 5" 라벨
+- 게임 종료 시 실시간 UI 업데이트 (race condition 수정)
+
+### v1.1.0 - Match 모듈
+- Match 모델 및 MongoDB 컬렉션
+- Challenge에 matchType 필드 추가
+- 5판 3선승 자동 다음 게임 생성
+- Round API에 match 정보 포함
+
+### v1.0.0 - 초기 설정
+- lichess 포크 및 submodule 구성
+- Docker 개발 환경 설정
+
+## 핵심 파일
+
+### Match 모듈 (v1.1.0)
 ```
-repos/scalachess/src/main/scala/variant/OpeningChallenge.scala
-repos/lila/modules/game/src/main/Match.scala
-repos/lila/modules/openingduel/                  # 새 모듈
+repos/lila/modules/match/
+├── src/main/
+│   ├── Match.scala           # Match 모델 (5판 3선승)
+│   ├── MatchApi.scala        # 비즈니스 로직
+│   ├── MatchRepo.scala       # MongoDB 저장소
+│   └── Env.scala             # 의존성 주입
 ```
 
-### 수정
+### Match Score UI (v1.2.0)
 ```
-repos/lila/app/controllers/Challenge.scala       # 챌린지 로직
-repos/lila/app/views/lobby/home.scala.html       # 로비 UI
-repos/lila/ui/lobby/src/main.ts                  # 로비 프론트
-repos/lila/ui/round/src/view/main.ts             # 게임 화면
-repos/chessground/assets/chessground.css         # 테마
+repos/lila/app/views/match/ui.scala              # Match Score 컴포넌트
+repos/lila/ui/lib/css/component/_match-score.scss # 스타일
+repos/lila/ui/round/css/build/round.scss         # CSS import
+repos/lila/ui/round/src/round.ts                 # endData() 수정
+```
+
+### 수정된 파일
+```
+repos/lila/app/controllers/Round.scala           # match 데이터 조회
+repos/lila/app/views/round/player.scala          # Match Score 렌더링
+repos/lila/app/views/round/watcher.scala         # Match Score 렌더링
+repos/lila/app/views/game/ui.scala               # sides 함수
+repos/lila/modules/round/src/main/RoundApi.scala # JSON에 match 정보
+repos/lila/modules/challenge/                    # matchType 필드
+```
+
+### 향후 생성 예정
+```
+repos/scalachess/src/main/scala/variant/OpeningChallenge.scala  # 커스텀 변형
+repos/lila/modules/openingduel/                                 # 밴픽 로직
 ```
 
 ## 기술 스택
