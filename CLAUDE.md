@@ -154,6 +154,17 @@ docker compose exec lila ./lila.sh playRoutes
 - 10개 오프닝 풀에서 매치당 5개 선택 (중복 없음)
 - FromPosition variant 사용
 - Match Score UI에 오프닝 이름 표시 (테이블 전치)
+- **오프닝 프리셋:**
+  1. Ruy Lopez, Marshall Attack
+  2. Italian Game, Giuoco Pianissimo
+  3. Queen's Gambit, Carlsbad
+  4. Catalan Opening
+  5. English, Botvinnik
+  6. Sicilian Najdorf
+  7. King's Indian, Mar del Plata
+  8. Grünfeld Exchange
+  9. Caro-Kann Classical
+  10. French Winawer
 
 ### v1.2.0 - Match Score UI
 - 게임 화면에서 crosstable 대신 Match Score 테이블 표시
