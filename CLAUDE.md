@@ -134,6 +134,7 @@ docker compose exec lila ./lila.sh playRoutes
 - [ ] OpeningChallenge variant 생성 (scalachess)
 - [ ] 오프닝 검증 로직
 - [x] Match 모델 (5판 3선승) - v1.1.0
+- [ ] 랜덤 오프닝 프리셋 - v1.3.0 (계획)
 - [ ] 밴픽 시스템
 
 ### Phase 4: UI 구현 (진행중)
@@ -147,6 +148,12 @@ docker compose exec lila ./lila.sh playRoutes
 - [ ] 클라우드 배포 (Railway/Fly.io)
 
 ## 릴리스 내역
+
+### v1.3.0 - Random Opening Presets (계획)
+- 각 게임이 랜덤 오프닝 프리셋(FEN)으로 시작
+- 10개 오프닝 풀에서 매치당 5개 선택 (중복 없음)
+- FromPosition variant 사용
+- Match Score UI에 오프닝 이름 표시 (테이블 전치)
 
 ### v1.2.0 - Match Score UI
 - 게임 화면에서 crosstable 대신 Match Score 테이블 표시
