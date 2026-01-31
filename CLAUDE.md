@@ -154,17 +154,22 @@ docker compose exec lila ./lila.sh playRoutes
 - 10개 오프닝 풀에서 매치당 5개 선택 (중복 없음)
 - FromPosition variant 사용
 - Match Score UI에 오프닝 이름 표시 (테이블 전치)
-- **오프닝 프리셋:**
-  1. Ruy Lopez, Marshall Attack
-  2. Italian Game, Giuoco Pianissimo
-  3. Queen's Gambit, Carlsbad
-  4. Catalan Opening
-  5. English, Botvinnik
-  6. Sicilian Najdorf
-  7. King's Indian, Mar del Plata
-  8. Grünfeld Exchange
-  9. Caro-Kann Classical
-  10. French Winawer
+- 오프닝 링크: `https://lichess.org/opening/{name}` (공백→`_`, 콜론 제거)
+
+**오프닝 프리셋 (ECO 코드 기준):**
+
+| # | ECO | Name | FEN |
+|---|-----|------|-----|
+| 1 | C89 | Ruy Lopez: Marshall Attack | `r1bq1rk1/2p1bppp/p1n2n2/1p1pp3/4P3/1BP2N2/PP1P1PPP/RNBQR1K1 w - - 0 9` |
+| 2 | C54 | Italian Game: Classical Variation, Giuoco Pianissimo | `r1bq1rk1/ppp2ppp/2np1n2/2b1p3/2B1P3/2PP1N2/PP1N1PPP/R1BQ1RK1 b - - 3 7` |
+| 3 | D35 | Queen's Gambit Declined: Normal Defense | `rnbqkb1r/ppp1pppp/4pn2/3p4/2PP4/2N5/PP2PPPP/R1BQKBNR w KQkq - 0 4` |
+| 4 | E05 | Catalan Opening: Open Defense, Classical Line | `rnbq1rk1/ppp1bppp/4pn2/8/2pP4/5NP1/PP2PPBP/RNBQ1RK1 w - - 0 7` |
+| 5 | A22 | English Opening: King's English, Two Knights | `rnbqkb1r/pppp1ppp/5n2/4p3/2P5/2N5/PP1PPPPP/R1BQKBNR w KQkq - 2 3` |
+| 6 | B90 | Sicilian Defense: Najdorf Variation | `rnbqkb1r/1p2pppp/p2p1n2/8/3NP3/2N5/PPP2PPP/R1BQKB1R w KQkq - 0 6` |
+| 7 | E20 | Nimzo-Indian Defense | `rnbqk2r/pppp1ppp/4pn2/8/1bPP4/2N5/PP2PPPP/R1BQKBNR w KQkq - 2 4` |
+| 8 | A56 | Benoni Defense | `rnbqkb1r/pp1ppppp/5n2/2p5/2PP4/8/PP2PPPP/RNBQKBNR w KQkq - 0 3` |
+| 9 | B19 | Caro-Kann Defense: Classical Variation | `r2qkbnr/pp1nppp1/2p3bp/8/3P3P/5NN1/PPP2PP1/R1BQKB1R w KQkq - 2 8` |
+| 10 | C18 | French Defense: Winawer Variation | `rnbqk1nr/pp3ppp/4p3/2ppP3/3P4/P1P5/2P2PPP/R1BQKBNR b KQkq - 0 6` |
 
 ### v1.2.0 - Match Score UI
 - 게임 화면에서 crosstable 대신 Match Score 테이블 표시
