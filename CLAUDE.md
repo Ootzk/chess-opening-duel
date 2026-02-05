@@ -426,6 +426,30 @@ gh release create v{version} --target main --generate-notes --notes "## Summary
 - [lila-docker 문서](https://github.com/lichess-org/lila-docker)
 - [Chessground 데모](http://localhost:8090/demo.html)
 
+## Claude 개발 가이드라인
+
+### 로컬 정리 절차 (PR 머지 후)
+```bash
+git fetch --prune                              # 원격 추적 브랜치 정리
+git switch release/{version}                   # release 브랜치로 전환
+git pull                                       # 최신 변경사항 pull
+git branch -D feature/{name}                   # 로컬 feature 브랜치 삭제
+git submodule update repos/lila                # submodule 동기화
+```
+
+### 커밋 분리 정책
+- **정책 구현 (기능)** 과 **버그픽스**는 별도 커밋으로 분리
+- lila에서 먼저 커밋/푸시 → 메인 repo에서 submodule 변경사항 커밋
+
+### 코드 변경 후 재시작
+- Scala 변경: `./lila-docker lila restart`
+- DB 리셋 필요시: `./lila-docker db`
+- 둘 다 필요시: `./lila-docker db && ./lila-docker lila restart`
+
+### UI 빌드
+- 특정 모듈만 빌드하지 말고 항상 전체 빌드
+- `./lila-docker ui` 또는 `./lila-docker ui --watch`
+
 ## 주의사항
 
 - lila 빌드에 12GB+ RAM 필요
