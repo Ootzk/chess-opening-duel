@@ -17,9 +17,52 @@ lichess 오픈소스 기반의 커스텀 체스 게임. 특정 오프닝으로�
 
 ### 밴픽 플로우
 1. **Pick Phase** (30초): 10개 오프닝 중 최대 5개 선택
+   - 타임아웃: 현재 선택 + 랜덤으로 5개 채워서 자동 확정
 2. **Ban Phase** (30초): 상대 픽 중 최대 2개 밴
-3. **Game 1**: 밴된 4개 오프닝 중 랜덤
-4. **Game 2~**: 전 경기 패자가 자신의 남은 픽 중 선택 (무승부 시 남은 밴 오프닝 중 랜덤)
+   - 타임아웃: 현재 선택 + 랜덤으로 2개 채워서 자동 확정
+3. **Game 1**: 밴된 4개 + 중립(Standard Game) = 5개 중 랜덤
+4. **Game 2~**: 전 경기 패자가 자신의 남은 픽 중 선택 (무승부 시 남은 밴/중립 오프닝 중 랜덤)
+
+#### Phase 상태
+```
+Picking → Banning → RandomSelecting → Playing ⟷ Selecting → ... → Finished
+```
+- `Picking` (10): 양측 오프닝 선택
+- `Banning` (20): 양측 밴 선택
+- `RandomSelecting` (25): Game 1 오프닝 랜덤 선택 중 (카운트다운)
+- `Playing` (30): 게임 진행 중
+- `Selecting` (35): 패자가 다음 오프닝 선택 중
+- `Finished` (40): 시리즈 종료
+
+#### API 엔드포인트
+| Method | Path | 설명 |
+|--------|------|------|
+| GET | `/series/{id}` | 시리즈 상태 조회 (JSON) |
+| GET | `/series/{id}/pick` | 밴픽 페이지 (HTML) |
+| POST | `/series/{id}/setPicks` | 픽 설정 |
+| POST | `/series/{id}/confirmPicks` | 픽 확정 |
+| POST | `/series/{id}/timeoutPicks` | 픽 타임아웃 (랜덤 채우기) |
+| POST | `/series/{id}/setBans` | 밴 설정 |
+| POST | `/series/{id}/confirmBans` | 밴 확정 |
+| POST | `/series/{id}/timeoutBans` | 밴 타임아웃 (랜덤 채우기) |
+| POST | `/series/{id}/selectNextOpening` | 다음 오프닝 선택 (패자용) |
+
+#### 핵심 파일
+```
+repos/lila/modules/series/src/main/
+├── Series.scala          # 시리즈 모델 (Phase, maxPicks, maxBans 등)
+├── SeriesPlayer.scala    # 플레이어 모델 (confirmedPicks, confirmedBans)
+├── SeriesOpening.scala   # 오프닝 모델 (source, ownerIndex, usedInRound)
+├── SeriesGame.scala      # 게임 결과 모델
+├── SeriesApi.scala       # 비즈니스 로직 (타임아웃 처리 포함)
+├── SeriesJson.scala      # JSON 직렬화
+└── OpeningPresets.scala  # 10개 오프닝 프리셋 정의
+
+repos/lila/ui/series/
+├── src/ctrl.ts           # 프론트엔드 컨트롤러
+├── src/view.ts           # Snabbdom 뷰
+└── css/_pick.scss        # 스타일
+```
 
 ## 저장소 구조
 
