@@ -12,13 +12,14 @@ import {
 } from '../helpers/series';
 
 /**
- * PR #24 Test Plan - Flow-based E2E Tests
+ * Series Ban/Pick E2E Tests
  *
- * Each test follows a complete flow from series creation to expected outcome:
- * - elena + hans: Happy path (Pick → Ban → Game start)
- * - boris + david: Ban timeout flow
- * - mei + ivan: Pick timeout flow
- * - ana + lola: Smoke tests
+ * Flow-based tests from series creation to game start:
+ * 1. Complete Flow: Both players confirm picks and bans normally
+ * 2. Ban Timeout: Player confirms picks but not bans → server auto-fills
+ * 3. Pick Timeout: Neither player confirms picks → server auto-fills all
+ * 4. Disconnect: Player disconnects → series aborted (skipped - unreliable in headless)
+ * 5. Smoke Tests: Basic login and homepage verification
  */
 
 // Cleanup helper for specific user pair
@@ -41,15 +42,15 @@ function cleanupPairData(users: string[]) {
   }
 }
 
-// ===== PAIR 1: elena + hans (Happy Path Flow) =====
-test.describe('Happy Path Flow - elena + hans', () => {
+// ===== Complete Flow (elena + hans) =====
+test.describe('Complete Flow', () => {
   test.describe.configure({ timeout: 120000 }); // 2 minutes for full flow
   const pair = testPairs.happyPath;
   const pairUsers = ['elena', 'hans'];
 
   test.beforeAll(() => cleanupPairData(pairUsers));
 
-  test('Complete flow: Series → Pick → Ban → Game', async ({ browser }) => {
+  test('Both players confirm picks and bans → game starts', async ({ browser }) => {
     const { player1Context, player2Context, player1, player2 } = await createTwoPlayerContexts(
       browser,
       pair.player1,
@@ -63,6 +64,16 @@ test.describe('Happy Path Flow - elena + hans', () => {
         await createSeriesChallenge(player1, player2, pair.player2.username);
         await waitForPhase(player1, 'Pick Phase');
         await waitForPhase(player2, 'Pick Phase');
+
+        // Screenshot: Pick Phase 진입 (fullPage로 Confirm 버튼까지 캡처)
+        await test.info().attach('1-pick-phase-player1', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+        await test.info().attach('1-pick-phase-player2', {
+          body: await player2.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
       });
 
       // ===== STEP 2: Pick Phase =====
@@ -83,6 +94,16 @@ test.describe('Happy Path Flow - elena + hans', () => {
         // Player 2 also selects 5
         await selectOpenings(player2, 5);
         expect(await getSelectedCount(player2)).toBe(5);
+
+        // Screenshot: 5개 선택 완료
+        await test.info().attach('2-pick-selected-player1', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+        await test.info().attach('2-pick-selected-player2', {
+          body: await player2.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
       });
 
       await test.step('Pick Phase: Both confirm and transition to Ban Phase', async () => {
@@ -94,9 +115,25 @@ test.describe('Happy Path Flow - elena + hans', () => {
         await waitForOpponentStatus(player1, 'ready', 5000);
         await waitForOpponentStatus(player2, 'ready', 5000);
 
+        // Screenshot: Ready 상태
+        await test.info().attach('3-pick-ready-player1', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+
         // Wait for 3-second delay + phase transition
         await waitForPhase(player1, 'Ban Phase', 10000);
         await waitForPhase(player2, 'Ban Phase', 10000);
+
+        // Screenshot: Ban Phase 진입
+        await test.info().attach('4-ban-phase-player1', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+        await test.info().attach('4-ban-phase-player2', {
+          body: await player2.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
       });
 
       // ===== STEP 3: Ban Phase =====
@@ -116,6 +153,16 @@ test.describe('Happy Path Flow - elena + hans', () => {
         // Player 2 also selects 2 bans
         await selectOpenings(player2, 2);
         expect(await getSelectedCount(player2)).toBe(2);
+
+        // Screenshot: 2개 밴 선택 완료
+        await test.info().attach('5-ban-selected-player1', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+        await test.info().attach('5-ban-selected-player2', {
+          body: await player2.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
       });
 
       await test.step('Ban Phase: Both confirm and transition to RandomSelecting', async () => {
@@ -127,6 +174,12 @@ test.describe('Happy Path Flow - elena + hans', () => {
         await waitForOpponentStatus(player1, 'ready', 5000);
         await waitForOpponentStatus(player2, 'ready', 5000);
 
+        // Screenshot: Ban Ready 상태
+        await test.info().attach('6-ban-ready-player1', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+
         // Wait for RandomSelecting phase or game redirect
         const randomSelectingVisible = player1
           .locator(selectors.randomSelecting)
@@ -137,6 +190,12 @@ test.describe('Happy Path Flow - elena + hans', () => {
           .catch(() => false);
 
         await Promise.race([randomSelectingVisible, gameRedirect]);
+
+        // Screenshot: RandomSelecting 상태 (오프닝 룰렛)
+        await test.info().attach('6.5-random-selecting', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
       });
 
       // ===== STEP 4: Game Start =====
@@ -147,6 +206,16 @@ test.describe('Happy Path Flow - elena + hans', () => {
 
         // Verify we're on a game page (should have board)
         await expect(player1.locator('cg-board, .cg-board')).toBeVisible({ timeout: 5000 });
+
+        // Screenshot: 게임 시작
+        await test.info().attach('7-game-started-player1', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+        await test.info().attach('7-game-started-player2', {
+          body: await player2.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
       });
     } finally {
       await player1Context.close();
@@ -155,15 +224,15 @@ test.describe('Happy Path Flow - elena + hans', () => {
   });
 });
 
-// ===== PAIR 2: boris + david (Ban Timeout Flow) =====
-test.describe('Ban Timeout Flow - boris + david', () => {
+// ===== Ban Timeout (boris + david) =====
+test.describe('Ban Timeout', () => {
   test.describe.configure({ timeout: 120000 });
   const pair = testPairs.banTimeout;
   const pairUsers = ['boris', 'david'];
 
   test.beforeAll(() => cleanupPairData(pairUsers));
 
-  test('Flow: Series → Pick OK → Ban timeout → Auto-confirm → Game', async ({ browser }) => {
+  test('Player 1 confirms bans, Player 2 times out → server auto-fills', async ({ browser }) => {
     const { player1Context, player2Context, player1, player2 } = await createTwoPlayerContexts(
       browser,
       pair.player1,
@@ -185,6 +254,12 @@ test.describe('Ban Timeout Flow - boris + david', () => {
         await confirm(player1);
         await confirm(player2);
         await waitForPhase(player1, 'Ban Phase', 10000);
+
+        // Screenshot: Ban Phase 진입
+        await test.info().attach('1-ban-phase-entered', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
       });
 
       // ===== STEP 3: Ban Phase - Player 1 confirms, Player 2 doesn't =====
@@ -192,6 +267,16 @@ test.describe('Ban Timeout Flow - boris + david', () => {
         // Player 1 selects and confirms bans
         await selectOpenings(player1, 2);
         await confirm(player1);
+
+        // Screenshot: Player1 확정, Player2 대기 중
+        await test.info().attach('2-player1-confirmed-player2-waiting', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+        await test.info().attach('2-player2-not-confirmed', {
+          body: await player2.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
 
         // Player 2 does nothing - server will auto-fill after timeout
         // Wait for either: RandomSelecting phase OR redirect to game
@@ -205,8 +290,30 @@ test.describe('Ban Timeout Flow - boris + david', () => {
         const phaseChange = waitForPhase(player1, 'Random', 20000).catch(() => false);
 
         const result = await Promise.race([randomSelectingVisible, gameRedirect, phaseChange]);
+
+        // Screenshot: 타임아웃 후 결과
+        await test.info().attach('3-after-timeout', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+
         // Any of these outcomes indicates the timeout + auto-fill worked
         expect(result !== false || player1.url().match(/\/[a-zA-Z0-9]{8,12}$/)).toBeTruthy();
+      });
+
+      // ===== STEP 4: Game Start =====
+      await test.step('Game starts after timeout', async () => {
+        // Wait for redirect to game page
+        await player1.waitForURL(/\/[a-zA-Z0-9]{8,12}(\/white|\/black)?$/, { timeout: 15000 });
+
+        // Verify we're on a game page
+        await expect(player1.locator('cg-board, .cg-board')).toBeVisible({ timeout: 5000 });
+
+        // Screenshot: 게임 시작
+        await test.info().attach('4-game-started', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
       });
     } finally {
       await player1Context.close();
@@ -215,15 +322,15 @@ test.describe('Ban Timeout Flow - boris + david', () => {
   });
 });
 
-// ===== PAIR 3: yulia + luis (Disconnect Test - SKIPPED) =====
-test.describe('Disconnect Flow - yulia + luis', () => {
+// ===== Disconnect Abort (yulia + luis) - SKIPPED =====
+test.describe('Disconnect Abort', () => {
   const pair = testPairs.disconnect;
   const pairUsers = ['yulia', 'luis'];
 
   test.beforeAll(() => cleanupPairData(pairUsers));
 
   // TODO: WebSocket disconnect detection doesn't work reliably in headless mode
-  test.skip('Flow: Series → Pick → Disconnect → Abort', async ({ browser }) => {
+  test.skip('Player disconnects during pick phase → series aborted', async ({ browser }) => {
     const { player1Context, player2Context, player1, player2 } = await createTwoPlayerContexts(
       browser,
       pair.player1,
@@ -255,15 +362,15 @@ test.describe('Disconnect Flow - yulia + luis', () => {
   });
 });
 
-// ===== PAIR 4: mei + ivan (Pick Timeout Flow) =====
-test.describe('Pick Timeout Flow - mei + ivan', () => {
+// ===== Pick Timeout (mei + ivan) =====
+test.describe('Pick Timeout', () => {
   test.describe.configure({ timeout: 120000 });
   const pair = testPairs.pickTimeout;
   const pairUsers = ['mei', 'ivan'];
 
   test.beforeAll(() => cleanupPairData(pairUsers));
 
-  test('Flow: Series → Pick timeout → Auto-confirm → Ban timeout → Game', async ({ browser }) => {
+  test('Neither player confirms → server auto-fills picks and bans', async ({ browser }) => {
     const { player1Context, player2Context, player1, player2 } = await createTwoPlayerContexts(
       browser,
       pair.player1,
@@ -284,6 +391,16 @@ test.describe('Pick Timeout Flow - mei + ivan', () => {
         await selectOpenings(player1, 2);
         await selectOpenings(player2, 3);
 
+        // Screenshot: 부분 선택 상태 (확정 안 함)
+        await test.info().attach('1-partial-selection-player1', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+        await test.info().attach('1-partial-selection-player2', {
+          body: await player2.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+
         // Don't confirm - wait for server-side timeout
         // After timeout: picks auto-filled → Ban Phase → (if no bans) ban timeout → Game
         const banPhaseReached = waitForPhase(player1, 'Ban Phase', 15000).catch(() => false);
@@ -293,7 +410,29 @@ test.describe('Pick Timeout Flow - mei + ivan', () => {
         const randomSelecting = waitForPhase(player1, 'Random', 15000).catch(() => false);
 
         const result = await Promise.race([banPhaseReached, gameStarted, randomSelecting]);
+
+        // Screenshot: 타임아웃 후 결과
+        await test.info().attach('2-after-timeout', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+
         expect(result !== false || player1.url().match(/\/[a-zA-Z0-9]{8,12}$/)).toBeTruthy();
+      });
+
+      // ===== STEP 3: Game Start =====
+      await test.step('Game starts after timeout', async () => {
+        // Wait for redirect to game page
+        await player1.waitForURL(/\/[a-zA-Z0-9]{8,12}(\/white|\/black)?$/, { timeout: 20000 });
+
+        // Verify we're on a game page
+        await expect(player1.locator('cg-board, .cg-board')).toBeVisible({ timeout: 5000 });
+
+        // Screenshot: 게임 시작
+        await test.info().attach('3-game-started', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
       });
     } finally {
       await player1Context.close();
@@ -302,57 +441,40 @@ test.describe('Pick Timeout Flow - mei + ivan', () => {
   });
 });
 
-// ===== PAIR 5: ana + lola (Smoke Tests) =====
-test.describe('Smoke Tests - ana + lola', () => {
+// ===== Smoke Tests (ana + lola) =====
+test.describe('Smoke Tests', () => {
   test.describe.configure({ mode: 'serial', timeout: 60000 });
   const pair = testPairs.smoke;
   const pairUsers = ['ana', 'lola'];
 
   test.beforeAll(() => cleanupPairData(pairUsers));
 
-  test('Can login with test accounts', async ({ browser }) => {
-    const { player1Context, player2Context, player1, player2 } = await createTwoPlayerContexts(
-      browser,
-      pair.player1,
-      pair.player2
-    );
+  test('Can login with test account', async ({ browser }) => {
+    // Single player login test - just need to verify auth works
+    const context = await browser.newContext({
+      storageState: pair.player1.storageState,
+    });
+    const page = await context.newPage();
 
     try {
-      await loginBothPlayers(player1, player2, pair.player1, pair.player2);
+      await page.goto('/');
+      await page.waitForLoadState('networkidle');
 
       // Verify login by checking for user menu
-      await expect(player1.locator('#user_tag')).toBeVisible({ timeout: 10000 });
-      await expect(player2.locator('#user_tag')).toBeVisible({ timeout: 10000 });
+      await expect(page.locator('#user_tag')).toBeVisible({ timeout: 10000 });
+
+      // Screenshot: 로그인 성공
+      await test.info().attach('login-success', {
+        body: await page.screenshot({ fullPage: true }),
+        contentType: 'image/png',
+      });
     } finally {
-      await player1Context.close();
-      await player2Context.close();
+      await context.close();
     }
   });
 
   test('Homepage loads correctly', async ({ page }) => {
     await page.goto('/');
     await expect(page).toHaveTitle(/lichess|chess/i);
-  });
-
-  test('Can create series and reach pick page', async ({ browser }) => {
-    const { player1Context, player2Context, player1, player2 } = await createTwoPlayerContexts(
-      browser,
-      pair.player1,
-      pair.player2
-    );
-
-    try {
-      await loginBothPlayers(player1, player2, pair.player1, pair.player2);
-      const seriesId = await createSeriesChallenge(player1, player2, pair.player2.username);
-
-      expect(seriesId).toBeTruthy();
-      await expect(player1.locator(selectors.seriesPick).first()).toBeVisible();
-      await expect(player2.locator(selectors.seriesPick).first()).toBeVisible();
-      await waitForPhase(player1, 'Pick Phase');
-      await waitForPhase(player2, 'Pick Phase');
-    } finally {
-      await player1Context.close();
-      await player2Context.close();
-    }
   });
 });
