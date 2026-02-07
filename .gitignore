@@ -29,3 +29,4 @@ tests/e2e/dist
 tests/e2e/test-results
 tests/e2e/playwright-report
 tests/e2e/.playwright
+tests/e2e/.auth

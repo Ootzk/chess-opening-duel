@@ -229,56 +229,107 @@ export const lobbySelectors = {
 };
 
 /**
- * Create a series by having player1 challenge player2
- * Returns the series ID
+ * Abort any existing games in progress for a player
  */
+export async function abortExistingGames(page: Page): Promise<void> {
+  for (let i = 0; i < 3; i++) {
+    const hangOnDialog = page.locator('text=Hang on!');
+    if (await hangOnDialog.isVisible({ timeout: 2000 }).catch(() => false)) {
+      const abortBtn = page.locator('button:has-text("Abort the game"), button:has-text("ABORT THE GAME")');
+      if (await abortBtn.first().isVisible({ timeout: 2000 }).catch(() => false)) {
+        await abortBtn.first().click();
+        await page.waitForLoadState('networkidle');
+        await page.waitForTimeout(1000);
+      }
+    } else {
+      break;
+    }
+  }
+}
+
+/**
+ * Cleanup: Navigate to lobby and abort any existing games
+ * Call this in finally blocks to clean up after tests
+ */
+export async function cleanupGames(page: Page): Promise<void> {
+  try {
+    await page.goto('/');
+    await page.waitForLoadState('networkidle').catch(() => {});
+    await abortExistingGames(page);
+  } catch {
+    // Ignore errors during cleanup
+  }
+}
+
 export async function createSeriesChallenge(
   player1: Page,
   player2: Page,
   player2Username: string,
-  timeMinutes = 5,
-  incrementSeconds = 3
+  _timeMinutes = 5,
+  _incrementSeconds = 3
 ): Promise<string> {
-  // Player1: Navigate to player2's profile and challenge
-  await player1.goto(`/@/${player2Username}`);
+  // Step 1: Navigate to lobby and abort any existing games for both players
+  await Promise.all([
+    player1.goto('/'),
+    player2.goto('/'),
+  ]);
+  await Promise.all([
+    player1.waitForLoadState('networkidle'),
+    player2.waitForLoadState('networkidle'),
+  ]);
+
+  // Abort existing games on both sides
+  await abortExistingGames(player1);
+  await abortExistingGames(player2);
+
+  // Re-navigate player1 to lobby after potential abort
+  await player1.goto('/');
   await player1.waitForLoadState('networkidle');
+  await abortExistingGames(player1);
 
-  // Click the challenge button
-  const challengeBtn = player1.locator('a.user-challenge, button.challenge, a:has-text("Challenge")');
-  await expect(challengeBtn.first()).toBeVisible({ timeout: 5000 });
-  await challengeBtn.first().click();
+  // Step 2: Click "Opening Duel" button in lobby
+  await player1.locator('.lobby__start button:has-text("Opening Duel")').first().click();
 
-  // Wait for setup modal/page
+  // Step 3: Game setup popup - wait for it to appear
+  const gameSetup = player1.locator('.game-setup');
+  await expect(gameSetup).toBeVisible({ timeout: 5000 });
+
+  // Select "Real time" mode (click the tab)
+  const realTimeTab = player1.locator('.game-setup .tabs-horiz span:has-text("Real time")');
+  await realTimeTab.first().click();
   await player1.waitForTimeout(500);
 
-  // Check if we're on a setup page or in a modal
-  // Try to find "Opening Duel" option or matchType selector
-  const openingDuelOption = player1.locator(
-    'input[value="openingDuel"], ' +
-    'select option[value="openingDuel"], ' +
-    'label:has-text("Opening Duel"), ' +
-    '.radio-group label:has-text("Opening Duel")'
-  );
-
-  if (await openingDuelOption.count() > 0) {
-    await openingDuelOption.first().click();
-  }
-
-  // Submit the challenge form
-  const submitBtn = player1.locator('button[type="submit"], button:has-text("Create"), .submit');
+  // Click the "Opening Duel" submit button in the modal
+  const submitBtn = player1.locator('.game-setup button:has-text("Opening Duel"), .game-setup .submit:has-text("Opening Duel")');
+  await expect(submitBtn.first()).toBeVisible({ timeout: 3000 });
   await submitBtn.first().click();
 
-  // Wait for challenge page
-  await player1.waitForURL(/\/(challenge|series)\//, { timeout: 10000 });
+  // Step 4: Wait for challenge page to load (URL can be /challenge/xxx or just /xxxxxxxx)
+  await player1.waitForTimeout(1000);
+  await player1.waitForLoadState('networkidle');
+
+  // Click opponent directly if visible in the "Or invite a Lichess user" section
+  const opponentBtn = player1.locator(`button:has-text("${player2Username}")`);
+  if (await opponentBtn.first().isVisible({ timeout: 3000 }).catch(() => false)) {
+    await opponentBtn.first().click();
+    await player1.waitForTimeout(1000);
+  }
+
+  // Wait for challenge to be created
 
   // Get challenge URL for player2 if on challenge page
   let challengeUrl = player1.url();
   let seriesId: string | undefined;
 
-  if (challengeUrl.includes('/challenge/')) {
+  // Check if on challenge page (either /challenge/{id} or just /{8-char-id})
+  const onChallengePage = challengeUrl.includes('/challenge/') ||
+    (await player1.locator('h1:has-text("Challenge"), .challenge').first().isVisible({ timeout: 2000 }).catch(() => false));
+
+  if (onChallengePage) {
     // Player2 needs to accept the challenge
     await player2.goto(challengeUrl);
     await player2.waitForLoadState('networkidle');
+    await player2.waitForTimeout(500);
 
     // Accept the challenge
     const acceptBtn = player2.locator(lobbySelectors.challengeAcceptBtn);
@@ -308,10 +359,10 @@ export async function createSeriesChallenge(
     player2.goto(pickUrl),
   ]);
 
-  // Wait for pick page to load on both
+  // Wait for pick page to load on both (use .first() to handle multiple matching elements)
   await Promise.all([
-    expect(player1.locator(selectors.seriesPick)).toBeVisible({ timeout: 10000 }),
-    expect(player2.locator(selectors.seriesPick)).toBeVisible({ timeout: 10000 }),
+    expect(player1.locator(selectors.seriesPick).first()).toBeVisible({ timeout: 10000 }),
+    expect(player2.locator(selectors.seriesPick).first()).toBeVisible({ timeout: 10000 }),
   ]);
 
   return seriesId;

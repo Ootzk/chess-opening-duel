@@ -28,10 +28,10 @@ test.describe('Series Ban/Pick - PR #24 Test Plan', () => {
     const { player1Context, player2Context, player1, player2 } = await createTwoPlayerContexts(browser);
 
     try {
-      await loginBothPlayers(player1, player2, users.lichess, users.mary);
+      await loginBothPlayers(player1, player2, users.elena, users.hans);
 
       // Create series through challenge flow
-      await createSeriesChallenge(player1, player2, users.mary.username);
+      await createSeriesChallenge(player1, player2, users.hans.username);
 
       // Wait for Pick Phase
       await waitForPhase(player1, 'Pick Phase');
@@ -61,10 +61,10 @@ test.describe('Series Ban/Pick - PR #24 Test Plan', () => {
     const { player1Context, player2Context, player1, player2 } = await createTwoPlayerContexts(browser);
 
     try {
-      await loginBothPlayers(player1, player2, users.lichess, users.mary);
+      await loginBothPlayers(player1, player2, users.elena, users.hans);
 
       // Create series
-      await createSeriesChallenge(player1, player2, users.mary.username);
+      await createSeriesChallenge(player1, player2, users.hans.username);
 
       await waitForPhase(player1, 'Pick Phase');
 
@@ -88,10 +88,10 @@ test.describe('Series Ban/Pick - PR #24 Test Plan', () => {
     const { player1Context, player2Context, player1, player2 } = await createTwoPlayerContexts(browser);
 
     try {
-      await loginBothPlayers(player1, player2, users.lichess, users.mary);
+      await loginBothPlayers(player1, player2, users.elena, users.hans);
 
       // Create series
-      await createSeriesChallenge(player1, player2, users.mary.username);
+      await createSeriesChallenge(player1, player2, users.hans.username);
 
       // Complete pick phase first
       await waitForPhase(player1, 'Pick Phase');
@@ -127,10 +127,10 @@ test.describe('Series Ban/Pick - PR #24 Test Plan', () => {
     const { player1Context, player2Context, player1, player2 } = await createTwoPlayerContexts(browser);
 
     try {
-      await loginBothPlayers(player1, player2, users.lichess, users.mary);
+      await loginBothPlayers(player1, player2, users.elena, users.hans);
 
       // Create series
-      await createSeriesChallenge(player1, player2, users.mary.username);
+      await createSeriesChallenge(player1, player2, users.hans.username);
 
       // Complete pick phase first
       await waitForPhase(player1, 'Pick Phase');
@@ -161,10 +161,10 @@ test.describe('Series Ban/Pick - PR #24 Test Plan', () => {
     const { player1Context, player2Context, player1, player2 } = await createTwoPlayerContexts(browser);
 
     try {
-      await loginBothPlayers(player1, player2, users.lichess, users.mary);
+      await loginBothPlayers(player1, player2, users.elena, users.hans);
 
       // Create series
-      await createSeriesChallenge(player1, player2, users.mary.username);
+      await createSeriesChallenge(player1, player2, users.hans.username);
 
       await waitForPhase(player1, 'Pick Phase');
 
@@ -195,10 +195,10 @@ test.describe('Series Ban/Pick - PR #24 Test Plan', () => {
     const { player1Context, player2Context, player1, player2 } = await createTwoPlayerContexts(browser);
 
     try {
-      await loginBothPlayers(player1, player2, users.lichess, users.mary);
+      await loginBothPlayers(player1, player2, users.elena, users.hans);
 
       // Create series
-      await createSeriesChallenge(player1, player2, users.mary.username);
+      await createSeriesChallenge(player1, player2, users.hans.username);
 
       await waitForPhase(player1, 'Pick Phase');
 
@@ -239,10 +239,10 @@ test.describe('Series Ban/Pick - PR #24 Test Plan', () => {
     const { player1Context, player2Context, player1, player2 } = await createTwoPlayerContexts(browser);
 
     try {
-      await loginBothPlayers(player1, player2, users.lichess, users.mary);
+      await loginBothPlayers(player1, player2, users.elena, users.hans);
 
       // Create series
-      await createSeriesChallenge(player1, player2, users.mary.username);
+      await createSeriesChallenge(player1, player2, users.hans.username);
 
       await waitForPhase(player1, 'Pick Phase');
 
@@ -280,11 +280,11 @@ test.describe('Series Ban/Pick - Quick Smoke Tests', () => {
     const { player1Context, player2Context, player1, player2 } = await createTwoPlayerContexts(browser);
 
     try {
-      await loginBothPlayers(player1, player2, users.lichess, users.mary);
+      await loginBothPlayers(player1, player2, users.elena, users.hans);
 
-      // Verify login by checking for user menu or username
-      await expect(player1.locator('#user_tag, .user-link')).toBeVisible({ timeout: 10000 });
-      await expect(player2.locator('#user_tag, .user-link')).toBeVisible({ timeout: 10000 });
+      // Verify login by checking for user menu
+      await expect(player1.locator('#user_tag')).toBeVisible({ timeout: 10000 });
+      await expect(player2.locator('#user_tag')).toBeVisible({ timeout: 10000 });
     } finally {
       await player1Context.close();
       await player2Context.close();
@@ -300,15 +300,15 @@ test.describe('Series Ban/Pick - Quick Smoke Tests', () => {
     const { player1Context, player2Context, player1, player2 } = await createTwoPlayerContexts(browser);
 
     try {
-      await loginBothPlayers(player1, player2, users.lichess, users.mary);
+      await loginBothPlayers(player1, player2, users.elena, users.hans);
 
       // Create series
-      const seriesId = await createSeriesChallenge(player1, player2, users.mary.username);
+      const seriesId = await createSeriesChallenge(player1, player2, users.hans.username);
 
       // Verify both are on pick page
       expect(seriesId).toBeTruthy();
-      await expect(player1.locator(selectors.seriesPick)).toBeVisible();
-      await expect(player2.locator(selectors.seriesPick)).toBeVisible();
+      await expect(player1.locator(selectors.seriesPick).first()).toBeVisible();
+      await expect(player2.locator(selectors.seriesPick).first()).toBeVisible();
 
       // Verify Pick Phase is active
       await waitForPhase(player1, 'Pick Phase');
