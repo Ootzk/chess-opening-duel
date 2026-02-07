@@ -216,6 +216,10 @@ docker compose exec lila ./lila.sh playRoutes
 ./lila-docker db
 ```
 
+### E2E 테스트 (Playwright)
+
+→ [tests/e2e/README.md](tests/e2e/README.md) 참조
+
 ## 구현 계획
 
 ### Phase 1: 환경 설정 ✅
@@ -244,6 +248,22 @@ docker compose exec lila ./lila.sh playRoutes
 ### Phase 5: 배포
 - [ ] Docker 이미지 빌드
 - [ ] 클라우드 배포 (Railway/Fly.io)
+
+### TODO: WebSocket 기반 Disconnect 감지
+
+현재 시리즈 밴/픽/선택 페이지는 HTTP 폴링으로 disconnect를 감지함:
+- `GET /series/{id}` 호출 시 `lastSeenAt` 업데이트
+- 10초 이상 미접속 시 `isDisconnected = true`
+
+**문제점:**
+- 테스트 모드에서 `phaseTimeout(5초) < disconnectTimeout(10초)`
+- 타임아웃 시점에 플레이어가 아직 "online"으로 간주됨
+- 게임 페이지는 WebSocket의 `gone`/`goneIn` 이벤트로 실시간 감지
+
+**해결 방안 (고려중):**
+- lila-ws에 시리즈용 WebSocket 채널 추가
+- 밴/픽/선택 phase에서도 게임처럼 실시간 disconnect 감지
+- E2E 테스트의 Disconnect Abort 케이스 활성화
 
 ## 릴리스 내역
 

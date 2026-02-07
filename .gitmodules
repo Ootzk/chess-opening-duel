@@ -7,3 +7,6 @@
 [submodule "repos/scalachess"]
 	path = repos/scalachess
 	url = https://github.com/Ootzk/chess-opening-duel-scalachess.git
+[submodule "repos/lila-db-seed"]
+	path = repos/lila-db-seed
+	url = https://github.com/Ootzk/chess-opening-duel-db-seed.git
