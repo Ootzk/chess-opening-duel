@@ -277,6 +277,13 @@ test('Complete flow: Series → Pick → Ban → Game', async ({ browser }) => {
 - 테스트 실패 시 리포트 확인을 유저에게 안내
 - 새 시나리오 추가 시 기존 플로우 패턴 따르기 (`test.step` 사용)
 
+**실전 팁:**
+- **병렬 실행**: 5개 테스트 페어가 독립적 → `workers: 5`로 병렬 실행
+- **API 기반 검증**: UI 대신 Series API로 상태 확인 (`isSeriesFinished`, status 코드)
+- **게임 상태 조회**: Board API streaming으로 정확한 FEN 조회 (`/api/board/game/stream/{gameId}`)
+- **스크린샷**: 주요 시점마다 `test.info().attach()`로 첨부 → 실패 시 리포트에서 확인
+- **Disconnect 테스트**: 현재 스킵됨 (phaseTimeout 5초 < disconnectTimeout 10초, WebSocket 구현 필요)
+
 ## 구현 계획
 
 ### Phase 1: 환경 설정 ✅
@@ -305,6 +312,22 @@ test('Complete flow: Series → Pick → Ban → Game', async ({ browser }) => {
 ### Phase 5: 배포
 - [ ] Docker 이미지 빌드
 - [ ] 클라우드 배포 (Railway/Fly.io)
+
+### TODO: WebSocket 기반 Disconnect 감지
+
+현재 시리즈 밴/픽/선택 페이지는 HTTP 폴링으로 disconnect를 감지함:
+- `GET /series/{id}` 호출 시 `lastSeenAt` 업데이트
+- 10초 이상 미접속 시 `isDisconnected = true`
+
+**문제점:**
+- 테스트 모드에서 `phaseTimeout(5초) < disconnectTimeout(10초)`
+- 타임아웃 시점에 플레이어가 아직 "online"으로 간주됨
+- 게임 페이지는 WebSocket의 `gone`/`goneIn` 이벤트로 실시간 감지
+
+**해결 방안 (고려중):**
+- lila-ws에 시리즈용 WebSocket 채널 추가
+- 밴/픽/선택 phase에서도 게임처럼 실시간 disconnect 감지
+- E2E 테스트의 Disconnect Abort 케이스 활성화
 
 ## 릴리스 내역
 
