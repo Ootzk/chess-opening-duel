@@ -287,8 +287,11 @@ test.describe('Complete Flow', () => {
 
       // ===== STEP 6: Player 1 Resigns =====
       await test.step('Player 1 resigns Game 1', async () => {
-        // Now resign should be available
-        await resignGame(player1);
+        // Resign via Board API
+        const resigned = await resignGame(player1, pair.player1.username);
+        expect(resigned).toBe(true);
+
+        await player1.waitForTimeout(500);
 
         // Screenshot: Game 1 종료 (Player 1 패배)
         await test.info().attach('8-game1-resigned-player1', {

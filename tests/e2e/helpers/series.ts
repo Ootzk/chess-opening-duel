@@ -726,22 +726,30 @@ export async function makeAnyMove(page: Page, username?: string): Promise<void> 
 }
 
 /**
- * Resign the current game
+ * Resign the current game via Board API
  * Note: Both players must have moved at least once before resign is available
  */
-export async function resignGame(page: Page): Promise<void> {
-  // Click resign button
-  const resignBtn = page.locator(gameSelectors.resignBtn);
-  await expect(resignBtn).toBeVisible({ timeout: 5000 });
-  await resignBtn.click();
+export async function resignGame(page: Page, username: string): Promise<boolean> {
+  const gameId = getGameIdFromUrl(page.url());
+  if (!gameId) {
+    throw new Error('Could not extract game ID from URL');
+  }
 
-  // Confirm resignation
-  const confirmBtn = page.locator(gameSelectors.resignConfirm);
-  await expect(confirmBtn).toBeVisible({ timeout: 3000 });
-  await confirmBtn.click();
+  const token = `lip_${username.toLowerCase()}`;
+  const url = `http://localhost:8080/api/board/game/${gameId}/resign`;
 
-  // Wait for game to end
-  await page.waitForTimeout(1000);
+  console.log(`[resignGame] user=${username}, gameId=${gameId}, url=${url}`);
+
+  const response = await page.request.post(url, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  const body = await response.text();
+  console.log(`[resignGame] user=${username}, status=${response.status()}, body=${body}`);
+
+  return response.ok();
 }
 
 /**
