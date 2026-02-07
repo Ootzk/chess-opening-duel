@@ -4,7 +4,7 @@ export default defineConfig({
   testDir: './specs',
   fullyParallel: true, // 각 테스트가 독립적인 계정 쌍 사용 → 병렬 실행 가능
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 1, // Retry once locally for flaky tests
+  retries: 0, // No retries - fail fast
   workers: 5, // 5 test pairs = 5 parallel workers
   reporter: 'html',
 

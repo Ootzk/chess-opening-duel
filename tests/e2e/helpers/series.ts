@@ -745,7 +745,34 @@ export async function resignGame(page: Page): Promise<void> {
 }
 
 /**
- * Offer a draw
+ * Offer or accept a draw via Board API
+ * Both players sending draw/yes results in a draw
+ */
+export async function sendDrawViaApi(page: Page, username: string): Promise<boolean> {
+  const gameId = getGameIdFromUrl(page.url());
+  if (!gameId) {
+    throw new Error('Could not extract game ID from URL');
+  }
+
+  const token = `lip_${username.toLowerCase()}`;
+  const url = `http://localhost:8080/api/board/game/${gameId}/draw/yes`;
+
+  console.log(`[sendDrawViaApi] user=${username}, gameId=${gameId}, url=${url}`);
+
+  const response = await page.request.post(url, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  const body = await response.text();
+  console.log(`[sendDrawViaApi] user=${username}, status=${response.status()}, body=${body}`);
+
+  return response.ok();
+}
+
+/**
+ * Offer a draw (deprecated - use sendDrawViaApi)
  */
 export async function offerDraw(page: Page): Promise<void> {
   // Click draw button to show confirmation
@@ -760,7 +787,7 @@ export async function offerDraw(page: Page): Promise<void> {
 }
 
 /**
- * Accept a draw offer
+ * Accept a draw offer (deprecated - use sendDrawViaApi)
  */
 export async function acceptDraw(page: Page): Promise<void> {
   // Look for draw accept button (appears when opponent offered)

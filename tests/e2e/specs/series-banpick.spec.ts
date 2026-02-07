@@ -12,9 +12,11 @@ import {
   gameSelectors,
   makeAnyMove,
   resignGame,
+  sendDrawViaApi,
   waitForSeriesRedirect,
   selectNextOpening,
   waitForGamePage,
+  waitForRandomSelecting,
   isMyTurn,
 } from '../helpers/series';
 
@@ -60,13 +62,13 @@ function cleanupPairData(users: string[]) {
 
 // ===== Complete Flow (elena + hans) =====
 test.describe('Complete Flow', () => {
-  test.describe.configure({ timeout: 60000 }); // 60 seconds for full flow through Game 2
+  test.describe.configure({ timeout: 90000 }); // 90 seconds for full flow through Game 3
   const pair = testPairs.happyPath;
   const pairUsers = ['elena', 'hans'];
 
   test.beforeAll(() => cleanupPairData(pairUsers));
 
-  test('Full flow through Game 2 @🟢pick:both-confirmed @🔴ban:both-confirmed @🎮game:resign→select', async ({ browser }) => {
+  test('Full flow through Game 3 @🟢pick:both-confirmed @🔴ban:both-confirmed @🎮game:resign→select→draw→random', async ({ browser }) => {
     const { player1Context, player2Context, player1, player2 } = await createTwoPlayerContexts(
       browser,
       pair.player1,
@@ -350,6 +352,115 @@ test.describe('Complete Flow', () => {
           contentType: 'image/png',
         });
         await test.info().attach('11-game2-started-player2', {
+          body: await player2.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+      });
+
+      // ===== STEP 10: Both players make a move in Game 2 =====
+      await test.step('Both players make one move each in Game 2', async () => {
+        // Determine colors from URL
+        const player1Url = player1.url();
+        const player1Color: 'white' | 'black' = player1Url.endsWith('/white')
+          ? 'white'
+          : player1Url.endsWith('/black')
+            ? 'black'
+            : 'white';
+        const player2Color: 'white' | 'black' = player1Color === 'white' ? 'black' : 'white';
+
+        // Check whose turn it is
+        const player1Turn = await isMyTurn(player1, pair.player1.username, player1Color);
+
+        // Make moves in correct order
+        if (player1Turn) {
+          await makeAnyMove(player1, pair.player1.username);
+          await makeAnyMove(player2, pair.player2.username);
+        } else {
+          await makeAnyMove(player2, pair.player2.username);
+          await makeAnyMove(player1, pair.player1.username);
+        }
+
+        await player1.waitForTimeout(500);
+      });
+
+      // ===== STEP 11: Draw by agreement =====
+      await test.step('Players agree to a draw in Game 2', async () => {
+        // Both players send draw/yes via Board API - results in draw
+        const draw1 = await sendDrawViaApi(player1, pair.player1.username);
+        const draw2 = await sendDrawViaApi(player2, pair.player2.username);
+
+        expect(draw1).toBe(true);
+        expect(draw2).toBe(true);
+
+        // Screenshot immediately after draw API call (before redirect)
+        await test.info().attach('12-game2-draw-player1', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+        await test.info().attach('12-game2-draw-player2', {
+          body: await player2.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+      });
+
+      // ===== STEP 12: RandomSelecting Phase (after draw) =====
+      await test.step('RandomSelecting phase after draw', async () => {
+        // After draw, server sends redirect to /series/{id}/pick (RandomSelecting phase)
+        // Then after 5-second countdown, redirects to game URL
+        // We need to handle both cases: catching RandomSelecting OR already on game page
+
+        // Wait for either series/pick URL or game URL
+        const waitForPostDrawRedirect = async (page: typeof player1) => {
+          await page.waitForURL(
+            (url) => {
+              const path = url.pathname;
+              return /\/series\/\w+\/pick/.test(path) || /\/[a-zA-Z0-9]{8,12}(\/white|\/black)?$/.test(path);
+            },
+            { timeout: 20000 }
+          );
+        };
+
+        await Promise.all([
+          waitForPostDrawRedirect(player1),
+          waitForPostDrawRedirect(player2),
+        ]);
+
+        // Check if we're on RandomSelecting page (might have already moved to game)
+        const player1OnSeriesPage = player1.url().includes('/series/');
+        const player2OnSeriesPage = player2.url().includes('/series/');
+
+        // Screenshot whatever state we're in
+        await test.info().attach('13-post-draw-player1', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+        await test.info().attach('13-post-draw-player2', {
+          body: await player2.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+
+        // If on series page, wait for RandomSelecting countdown to finish
+        if (player1OnSeriesPage) {
+          await waitForRandomSelecting(player1, 10000).catch(() => {});
+        }
+      });
+
+      // ===== STEP 13: Game 3 Starts =====
+      await test.step('Game 3 starts after random selection', async () => {
+        // Wait for redirect to game page
+        await waitForGamePage(player1, 15000);
+        await waitForGamePage(player2, 15000);
+
+        // Verify we're on a game page
+        await expect(player1.locator(gameSelectors.board)).toBeVisible({ timeout: 5000 });
+        await expect(player2.locator(gameSelectors.board)).toBeVisible({ timeout: 5000 });
+
+        // Screenshot: Game 3 시작
+        await test.info().attach('14-game3-started-player1', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+        await test.info().attach('14-game3-started-player2', {
           body: await player2.screenshot({ fullPage: true }),
           contentType: 'image/png',
         });
