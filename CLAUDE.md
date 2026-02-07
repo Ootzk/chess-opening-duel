@@ -24,15 +24,58 @@ lichess 오픈소스 기반의 커스텀 체스 게임. 특정 오프닝으로�
 4. **Game 2~**: 전 경기 패자가 자신의 남은 픽 중 선택 (무승부 시 남은 밴/중립 오프닝 중 랜덤)
 
 #### Phase 상태
-```
-Picking → Banning → RandomSelecting → Playing ⟷ Selecting → ... → Finished
-```
+
 - `Picking` (10): 양측 오프닝 선택
 - `Banning` (20): 양측 밴 선택
 - `RandomSelecting` (25): Game 1 오프닝 랜덤 선택 중 (카운트다운)
 - `Playing` (30): 게임 진행 중
 - `Selecting` (35): 패자가 다음 오프닝 선택 중
 - `Finished` (40): 시리즈 종료
+
+#### 플로우 다이어그램
+
+**Phase 전환 (메인 플로우):**
+```mermaid
+flowchart LR
+    subgraph Pre["Pre-game"]
+        PICK[Picking<br/>30s] -->|confirm| BAN[Banning<br/>30s]
+    end
+
+    subgraph Game["Game Loop"]
+        RS[RandomSelecting<br/>5s] --> PLAY[Playing]
+        PLAY -->|draw| RS
+        PLAY -->|winner| SEL[Selecting<br/>30s]
+        SEL --> PLAY
+    end
+
+    BAN -->|startGame1| RS
+    PLAY -->|series done| FIN[Finished]
+
+    PICK -.->|timeout+disconnect| ABORT[Aborted]
+    BAN -.->|timeout+disconnect| ABORT
+```
+
+**타임아웃 처리 (서버 스케줄러):**
+```mermaid
+flowchart TD
+    TIMEOUT[Timeout fires] --> CHECK{timeLeft > 1?}
+    CHECK -->|Yes| RESCHED[Reschedule remaining]
+    CHECK -->|No| DISC{Disconnected?}
+    DISC -->|Yes| ABORT[Abort series]
+    DISC -->|No| AUTO[Auto-fill + confirm]
+    AUTO --> NEXT[Next phase]
+```
+
+**주요 이벤트:**
+
+| 이벤트 | 발생 시점 | Env.scala 핸들러 |
+|--------|----------|------------------|
+| `SeriesCreated` | Series 생성 | `timeouts.schedule()` |
+| `SeriesPhaseChanged` | Phase 전환 | Banning: `schedule()`, 나머지: `cancel()` |
+| `SeriesAborted` | Timeout + Disconnected | - |
+| `SeriesEnterSelecting` | Game 2+ 승자 결정 | 클라이언트 리다이렉트 |
+| `SeriesDrawRandomSelecting` | Game 2+ 무승부 | 클라이언트 리다이렉트 |
+| `SeriesFinished` | 시리즈 종료 | - |
 
 #### API 엔드포인트
 | Method | Path | 설명 |
