@@ -1,5 +1,6 @@
 import { Page, expect } from '@playwright/test';
 import { Chess } from 'chess.js';
+import type { PickBanBehavior } from './auth';
 
 // Selectors matching view.ts structure
 export const selectors = {
@@ -1153,47 +1154,180 @@ export async function waitForNextGame(
 }
 
 /**
- * Complete ban/pick phase quickly for both players
+ * Execute pick/ban behavior for a single player
+ *
+ * Behavior types:
+ * - confirm: Select required amount and confirm
+ * - full-timeout: Select required amount but don't confirm (wait for timeout)
+ * - partial-timeout: Select some but not all (wait for timeout + server auto-fill)
+ * - none-timeout: Select nothing (wait for timeout + server auto-fill)
+ */
+async function executePickBanBehavior(
+  page: Page,
+  behavior: PickBanBehavior,
+  phase: 'pick' | 'ban'
+): Promise<void> {
+  const requiredCount = phase === 'pick' ? 5 : 2;
+  const partialCount = phase === 'pick' ? 2 : 1; // For partial-timeout
+
+  switch (behavior) {
+    case 'confirm':
+      await selectOpenings(page, requiredCount);
+      await confirm(page);
+      break;
+    case 'full-timeout':
+      await selectOpenings(page, requiredCount);
+      // Don't confirm - wait for timeout
+      break;
+    case 'partial-timeout':
+      await selectOpenings(page, partialCount);
+      // Don't confirm - wait for timeout + auto-fill
+      break;
+    case 'none-timeout':
+      // Don't select anything - wait for timeout + auto-fill
+      break;
+  }
+}
+
+/**
+ * Check if a behavior requires waiting for server timeout
+ */
+function needsTimeout(behavior: PickBanBehavior): boolean {
+  return behavior !== 'confirm';
+}
+
+/**
+ * Options for ban/pick phase behaviors
+ */
+export interface BanPickOptions {
+  pick: { p1: PickBanBehavior; p2: PickBanBehavior };
+  ban: { p1: PickBanBehavior; p2: PickBanBehavior };
+}
+
+/**
+ * Complete ban/pick phase with configurable behaviors for both players
+ *
+ * @param player1 - Player 1's page
+ * @param player2 - Player 2's page
+ * @param options - Pick/ban behavior options (defaults to confirm for all)
  */
 export async function completeBanPickPhase(
   player1: Page,
-  player2: Page
+  player2: Page,
+  options?: BanPickOptions
 ): Promise<void> {
-  // Pick Phase: Both select 5 and confirm
+  // Default to confirm for all if no options provided
+  const opts: BanPickOptions = options || {
+    pick: { p1: 'confirm', p2: 'confirm' },
+    ban: { p1: 'confirm', p2: 'confirm' },
+  };
+
+  console.log(`[completeBanPickPhase] pick: p1=${opts.pick.p1}, p2=${opts.pick.p2}, ban: p1=${opts.ban.p1}, p2=${opts.ban.p2}`);
+
+  // ===== Pick Phase =====
   await waitForPhase(player1, 'Pick Phase');
   await waitForPhase(player2, 'Pick Phase');
 
+  // Execute pick behaviors in parallel
   await Promise.all([
-    (async () => {
-      await selectOpenings(player1, 5);
-      await confirm(player1);
-    })(),
-    (async () => {
-      await selectOpenings(player2, 5);
-      await confirm(player2);
-    })(),
+    executePickBanBehavior(player1, opts.pick.p1, 'pick'),
+    executePickBanBehavior(player2, opts.pick.p2, 'pick'),
   ]);
 
-  // Wait for Ban Phase
-  await waitForPhase(player1, 'Ban Phase');
-  await waitForPhase(player2, 'Ban Phase');
+  // If any player needs timeout, wait for phase transition
+  const pickNeedsTimeout = needsTimeout(opts.pick.p1) || needsTimeout(opts.pick.p2);
+  if (pickNeedsTimeout) {
+    console.log('[completeBanPickPhase] Waiting for pick timeout...');
+    // Wait for Ban Phase (server auto-fills and transitions after timeout)
+    await waitForPhase(player1, 'Ban Phase', 20000);
+    await waitForPhase(player2, 'Ban Phase', 20000);
+  } else {
+    // Both confirmed - wait for phase transition
+    await waitForPhase(player1, 'Ban Phase', 10000);
+    await waitForPhase(player2, 'Ban Phase', 10000);
+  }
 
-  // Ban Phase: Both select 2 and confirm
+  // ===== Ban Phase =====
+  // Execute ban behaviors in parallel
   await Promise.all([
-    (async () => {
-      await selectOpenings(player1, 2);
-      await confirm(player1);
-    })(),
-    (async () => {
-      await selectOpenings(player2, 2);
-      await confirm(player2);
-    })(),
+    executePickBanBehavior(player1, opts.ban.p1, 'ban'),
+    executePickBanBehavior(player2, opts.ban.p2, 'ban'),
   ]);
+
+  // If any player needs timeout, wait for phase transition
+  const banNeedsTimeout = needsTimeout(opts.ban.p1) || needsTimeout(opts.ban.p2);
+  if (banNeedsTimeout) {
+    console.log('[completeBanPickPhase] Waiting for ban timeout...');
+  }
 
   // Wait for RandomSelecting phase (Game 1 random selection)
-  await waitForRandomSelecting(player1, 10000).catch(() => {});
+  await waitForRandomSelecting(player1, 20000).catch(() => {});
 
   // Wait for game to start
   await waitForGamePage(player1, 15000);
   await waitForGamePage(player2, 15000);
+}
+
+/**
+ * Parse series result string into game outcomes
+ *
+ * @param seriesResult - e.g., '0 - 1/2 - 1 - 1'
+ * @returns Array of outcomes: 'p1-resign' | 'p2-resign' | 'draw'
+ */
+export function parseSeriesResult(seriesResult: string): Array<'p1-resign' | 'p2-resign' | 'draw'> {
+  const parts = seriesResult.split(' - ').map(s => s.trim());
+  return parts.map(part => {
+    if (part === '1') return 'p2-resign'; // P1 wins = P2 resigns
+    if (part === '0') return 'p1-resign'; // P1 loses = P1 resigns
+    if (part === '1/2') return 'draw';
+    throw new Error(`Invalid series result part: ${part}`);
+  });
+}
+
+/**
+ * Execute a full series based on the series result string
+ *
+ * @param player1 - Player 1's page
+ * @param player2 - Player 2's page
+ * @param p1Username - Player 1's username
+ * @param p2Username - Player 2's username
+ * @param seriesResult - e.g., '0 - 1/2 - 1 - 1'
+ * @param seriesId - Series ID for verification
+ */
+export async function executeSeriesResult(
+  player1: Page,
+  player2: Page,
+  p1Username: string,
+  p2Username: string,
+  seriesResult: string,
+  seriesId: string
+): Promise<void> {
+  const outcomes = parseSeriesResult(seriesResult);
+  console.log(`[executeSeriesResult] Playing ${outcomes.length} games: ${seriesResult}`);
+
+  let lastGameId = '';
+
+  for (let i = 0; i < outcomes.length; i++) {
+    const outcome = outcomes[i];
+    const isLastGame = i === outcomes.length - 1;
+
+    console.log(`[executeSeriesResult] Game ${i + 1}/${outcomes.length}: ${outcome}`);
+
+    // Play the game
+    lastGameId = await playOneGame(player1, player2, p1Username, p2Username, outcome);
+
+    // Wait for next game if not the last game
+    if (!isLastGame) {
+      await player1.waitForTimeout(500);
+      await waitForNextGame(player1, player2, null, lastGameId, 25000);
+    }
+  }
+
+  // Verify series finished
+  await player1.waitForTimeout(1000);
+  const finished = await isSeriesFinished(player1, seriesId);
+  if (!finished) {
+    throw new Error(`Series ${seriesId} did not finish after ${outcomes.length} games`);
+  }
+  console.log(`[executeSeriesResult] Series ${seriesId} finished successfully`);
 }
