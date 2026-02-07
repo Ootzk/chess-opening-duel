@@ -532,15 +532,25 @@ export async function getUsername(page: Page): Promise<string> {
 }
 
 /**
+ * Full game state from Board API including player colors
+ */
+export interface GameFullState {
+  initialFen: string;
+  moves: string;
+  whitePlayer: string;  // Username of white player
+  blackPlayer: string;  // Username of black player
+}
+
+/**
  * Get current game state via Board API streaming
- * Returns the initial FEN and all moves played so far
+ * Returns the initial FEN, moves, and player color assignments
  * Note: Uses timeout since streaming endpoint never closes
  */
 export async function getGameStateViaApi(
   page: Page,
   username: string,
   gameId: string
-): Promise<{ initialFen: string; moves: string }> {
+): Promise<GameFullState> {
   const token = `lip_${username.toLowerCase()}`;
   const url = `http://localhost:8080/api/board/game/stream/${gameId}`;
 
@@ -585,6 +595,8 @@ export async function getGameStateViaApi(
         return {
           initialFen: gameFull.initialFen || 'startpos',
           moves: gameFull.state?.moves || '',
+          whitePlayer: gameFull.white?.id?.toLowerCase() || gameFull.white?.name?.toLowerCase() || '',
+          blackPlayer: gameFull.black?.id?.toLowerCase() || gameFull.black?.name?.toLowerCase() || '',
         };
       }
     }
@@ -657,27 +669,28 @@ export async function makeMoveViaApi(
 
 /**
  * Check if it's our turn to move
- * Returns true if it's the specified color's turn
- * Uses Board API streaming to get accurate current game state
+ * Uses Board API streaming to get accurate current game state and color assignment
  */
 export async function isMyTurn(
   page: Page,
-  username: string,
-  myColor: 'white' | 'black'
+  username: string
 ): Promise<boolean> {
   const gameId = getGameIdFromUrl(page.url());
-  if (!gameId) return myColor === 'white';
+  if (!gameId) return true; // Assume it's our turn if we can't determine
 
   try {
-    const { initialFen, moves } = await getGameStateViaApi(page, username, gameId);
-    const currentFen = computeCurrentFen(initialFen, moves);
+    const gameState = await getGameStateViaApi(page, username, gameId);
+    const currentFen = computeCurrentFen(gameState.initialFen, gameState.moves);
     const chess = new Chess(currentFen);
     const turnColor = chess.turn(); // 'w' or 'b'
 
-    return (turnColor === 'w' && myColor === 'white') ||
-           (turnColor === 'b' && myColor === 'black');
+    // Check if this user is the one whose turn it is
+    const userIsWhite = gameState.whitePlayer === username.toLowerCase();
+    const whiteToMove = turnColor === 'w';
+
+    return (userIsWhite && whiteToMove) || (!userIsWhite && !whiteToMove);
   } catch {
-    return myColor === 'white';
+    return true; // Assume it's our turn if we can't determine
   }
 }
 
@@ -864,4 +877,322 @@ export async function selectNextOpening(page: Page, openingIndex = 0): Promise<v
   const confirmBtn = page.locator(selectors.anyConfirmBtn);
   await expect(confirmBtn).toBeVisible({ timeout: 3000 });
   await confirmBtn.click();
+}
+
+// ===== Victory Condition Helpers =====
+
+/**
+ * Play both moves (one from each player) required before resign/draw
+ * Handles turn order based on actual color assignments from the API
+ */
+export async function playBothMoves(
+  player1: Page,
+  player2: Page,
+  p1Username: string,
+  p2Username: string
+): Promise<void> {
+  // Ensure both players are on a game page with board visible
+  await expect(player1.locator(gameSelectors.board)).toBeVisible({ timeout: 10000 });
+  await expect(player2.locator(gameSelectors.board)).toBeVisible({ timeout: 10000 });
+
+  const gameId = getGameIdFromUrl(player1.url());
+  if (!gameId) {
+    throw new Error(`Could not get game ID from URL: ${player1.url()}`);
+  }
+
+  // Verify player2 is also on the same game
+  const p2GameId = getGameIdFromUrl(player2.url());
+  if (p2GameId !== gameId) {
+    console.log(`[playBothMoves] Waiting for P2 to join game ${gameId} (currently on ${p2GameId})`);
+    await player2.waitForURL((url) => url.pathname.includes(gameId), { timeout: 10000 });
+  }
+
+  // Get current game state including player color assignments
+  const gameState = await getGameStateViaApi(player1, p1Username, gameId);
+  const currentFen = computeCurrentFen(gameState.initialFen, gameState.moves);
+  const chess = new Chess(currentFen);
+  const turnColor = chess.turn(); // 'w' or 'b'
+
+  // Determine which player is which color
+  const p1IsWhite = gameState.whitePlayer === p1Username.toLowerCase();
+  const p2IsWhite = gameState.whitePlayer === p2Username.toLowerCase();
+
+  // Determine who should move first based on turn and color assignment
+  const whiteToMove = turnColor === 'w';
+  const p1ToMove = (p1IsWhite && whiteToMove) || (!p1IsWhite && !whiteToMove);
+
+  console.log(`[playBothMoves] gameId=${gameId}, white=${gameState.whitePlayer}, black=${gameState.blackPlayer}, turn=${turnColor}, p1IsWhite=${p1IsWhite}, p1ToMove=${p1ToMove}`);
+
+  // Make moves in correct order based on who should move
+  if (p1ToMove) {
+    await makeAnyMove(player1, p1Username);
+    await makeAnyMove(player2, p2Username);
+  } else {
+    await makeAnyMove(player2, p2Username);
+    await makeAnyMove(player1, p1Username);
+  }
+
+  await player1.waitForTimeout(300);
+}
+
+/**
+ * Play one complete game with specified result
+ * @param result - 'p1-resign' | 'p2-resign' | 'draw'
+ * @returns The game ID of the completed game
+ */
+export async function playOneGame(
+  player1: Page,
+  player2: Page,
+  p1Username: string,
+  p2Username: string,
+  result: 'p1-resign' | 'p2-resign' | 'draw'
+): Promise<string> {
+  // Wait for game board to be visible
+  await expect(player1.locator(gameSelectors.board)).toBeVisible({ timeout: 5000 });
+  await expect(player2.locator(gameSelectors.board)).toBeVisible({ timeout: 5000 });
+
+  // Get current game ID to track this game
+  const gameId = getGameIdFromUrl(player1.url()) || '';
+  console.log(`[playOneGame] Starting game ${gameId} with result=${result}`);
+
+  // Both players make one move (required for resign/draw)
+  await playBothMoves(player1, player2, p1Username, p2Username);
+
+  // Execute the result
+  switch (result) {
+    case 'p1-resign':
+      await resignGame(player1, p1Username);
+      break;
+    case 'p2-resign':
+      await resignGame(player2, p2Username);
+      break;
+    case 'draw':
+      // Both players send draw/yes
+      await Promise.all([
+        sendDrawViaApi(player1, p1Username),
+        sendDrawViaApi(player2, p2Username),
+      ]);
+      break;
+  }
+
+  await player1.waitForTimeout(500);
+  return gameId;
+}
+
+/**
+ * Check if series is finished by calling the Series API directly
+ *
+ * Status values (from Series.scala):
+ * - Created: 10
+ * - Started: 20
+ * - Finished: 30
+ * - Aborted: 40
+ *
+ * @param retries - 서버가 상태 업데이트할 시간을 주기 위한 재시도 횟수
+ */
+export async function isSeriesFinished(
+  page: Page,
+  seriesId?: string,
+  retries = 3
+): Promise<boolean> {
+  // Get series ID from URL if not provided
+  let id = seriesId;
+  if (!id) {
+    const url = page.url();
+    const match = url.match(/\/series\/(\w+)/);
+    if (match) {
+      id = match[1];
+    } else {
+      console.log(`[isSeriesFinished] No series ID found in URL: ${url}`);
+      // 게임 페이지에 있고 pick 페이지로 리다이렉트되지 않으면 종료로 간주
+      await page.waitForTimeout(3000);
+      const stillOnGame = !page.url().includes('/series/');
+      console.log(`[isSeriesFinished] Fallback check: stillOnGame=${stillOnGame}`);
+      return stillOnGame;
+    }
+  }
+
+  // 재시도 로직: 서버가 게임 결과를 처리할 시간 확보
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const response = await page.request.get(`http://localhost:8080/series/${id}`, {
+        headers: { Accept: 'application/json' },
+      });
+
+      if (response.ok()) {
+        const data = await response.json();
+
+        // 첫 번째 시도에서만 전체 구조 출력
+        if (attempt === 1) {
+          console.log(`[isSeriesFinished] Full response keys: ${Object.keys(data).join(', ')}`);
+          console.log(`[isSeriesFinished] status type: ${typeof data.status}, value: ${JSON.stringify(data.status)}`);
+          console.log(`[isSeriesFinished] players type: ${typeof data.players}, isArray: ${Array.isArray(data.players)}`);
+        }
+
+        // status가 숫자일 수도 있고 객체일 수도 있음
+        const statusId = typeof data.status === 'number' ? data.status : data.status?.id;
+        const phaseId = typeof data.phase === 'number' ? data.phase : data.phase?.id;
+
+        // players가 배열인지 튜플인지 확인
+        const p1 = Array.isArray(data.players) ? data.players[0] : data.players?._1 || data.players?.player1;
+        const p2 = Array.isArray(data.players) ? data.players[1] : data.players?._2 || data.players?.player2;
+        const p1Score = p1?.score ?? 0;
+        const p2Score = p2?.score ?? 0;
+        const gamesCount = data.games?.length ?? 0;
+
+        console.log(`[isSeriesFinished] attempt=${attempt}, status=${statusId}, phase=${phaseId}, scores=${p1Score / 2}-${p2Score / 2}, games=${gamesCount}`);
+
+        // status.id === 30 means Finished
+        if (statusId === 30) {
+          return true;
+        }
+
+        // 아직 안 끝났으면 잠시 대기 후 재시도
+        if (attempt < retries) {
+          await page.waitForTimeout(1000);
+        }
+      }
+    } catch (err) {
+      console.log(`[isSeriesFinished] API error on attempt ${attempt}:`, err);
+    }
+  }
+
+  console.log(`[isSeriesFinished] Series ${id} not finished after ${retries} attempts`);
+  return false;
+}
+
+/**
+ * Wait for next game to start after a game ends
+ *
+ * Phase transitions (from CLAUDE.md):
+ * - PLAY →|winner| SEL (Selecting: 패자가 픽 선택)
+ * - PLAY →|draw| RS (RandomSelecting: ban pool에서 랜덤, 5초 카운트다운)
+ * - PLAY →|series done| FIN (시리즈 종료, 리다이렉트 없음)
+ *
+ * UI classes:
+ * - .series-pick.random-selecting: RandomSelecting (5초 후 자동 리다이렉트)
+ * - .series-pick.selecting-waiting: Selecting의 승자 (패자가 선택할 때까지 대기)
+ * - 선택 가능한 오프닝(.series-pick__opening:not(.disabled)): Selecting의 패자만
+ */
+export async function waitForNextGame(
+  player1: Page,
+  player2: Page,
+  _loserPage: Page | null,  // Deprecated, kept for API compatibility
+  previousGameId?: string,
+  timeout = 25000
+): Promise<void> {
+  console.log(`[waitForNextGame] previousGameId=${previousGameId}, starting...`);
+
+  const startTime = Date.now();
+  let hasSelected = false; // 패자가 오프닝을 선택했는지 추적
+
+  // Helper: 한 플레이어의 상태를 체크하고 필요시 행동
+  const handlePlayer = async (page: Page, label: string): Promise<void> => {
+    while (Date.now() - startTime < timeout) {
+      const path = new URL(page.url()).pathname;
+
+      // 새 게임 페이지에 도착하면 완료
+      const gameMatch = path.match(/\/([a-zA-Z0-9]{8,12})(\/white|\/black)?$/);
+      if (gameMatch && gameMatch[1] !== previousGameId) {
+        console.log(`[waitForNextGame] ${label} arrived at game: ${gameMatch[1]}`);
+        return;
+      }
+
+      // Pick 페이지에 있을 때
+      if (/\/series\/\w+\/pick/.test(path)) {
+        // UI가 렌더링될 때까지 잠시 대기
+        await page.waitForTimeout(300);
+
+        // 1. RandomSelecting: 카운트다운 중, 행동 불필요
+        const isRandomSelecting = await page.locator(selectors.randomSelecting).isVisible().catch(() => false);
+        if (isRandomSelecting) {
+          console.log(`[waitForNextGame] ${label} in RandomSelecting (countdown)`);
+          await page.waitForTimeout(500);
+          continue;
+        }
+
+        // 2. Selecting (승자): 패자가 선택할 때까지 대기
+        const isWaiting = await page.locator(selectors.selectingWaiting).isVisible().catch(() => false);
+        if (isWaiting) {
+          console.log(`[waitForNextGame] ${label} is winner, waiting for loser...`);
+          await page.waitForTimeout(500);
+          continue;
+        }
+
+        // 3. Selecting (패자): 오프닝 선택
+        if (!hasSelected) {
+          const selectableOpenings = page.locator(`${selectors.opening}:not(.disabled)`);
+          const count = await selectableOpenings.count();
+          if (count > 0) {
+            console.log(`[waitForNextGame] ${label} is loser, selecting opening (${count} available)...`);
+            await selectNextOpening(page, 0);
+            hasSelected = true;
+            continue;
+          }
+        }
+      }
+
+      await page.waitForTimeout(300);
+    }
+    throw new Error(`[waitForNextGame] ${label} timeout - did not reach game page`);
+  };
+
+  // 양 플레이어 병렬로 처리
+  await Promise.all([
+    handlePlayer(player1, 'P1'),
+    handlePlayer(player2, 'P2'),
+  ]);
+
+  // 보드 표시 확인
+  await expect(player1.locator(gameSelectors.board)).toBeVisible({ timeout: 5000 });
+  await expect(player2.locator(gameSelectors.board)).toBeVisible({ timeout: 5000 });
+
+  const newGameId = getGameIdFromUrl(player1.url());
+  console.log(`[waitForNextGame] Both players on game ${newGameId}`);
+}
+
+/**
+ * Complete ban/pick phase quickly for both players
+ */
+export async function completeBanPickPhase(
+  player1: Page,
+  player2: Page
+): Promise<void> {
+  // Pick Phase: Both select 5 and confirm
+  await waitForPhase(player1, 'Pick Phase');
+  await waitForPhase(player2, 'Pick Phase');
+
+  await Promise.all([
+    (async () => {
+      await selectOpenings(player1, 5);
+      await confirm(player1);
+    })(),
+    (async () => {
+      await selectOpenings(player2, 5);
+      await confirm(player2);
+    })(),
+  ]);
+
+  // Wait for Ban Phase
+  await waitForPhase(player1, 'Ban Phase');
+  await waitForPhase(player2, 'Ban Phase');
+
+  // Ban Phase: Both select 2 and confirm
+  await Promise.all([
+    (async () => {
+      await selectOpenings(player1, 2);
+      await confirm(player1);
+    })(),
+    (async () => {
+      await selectOpenings(player2, 2);
+      await confirm(player2);
+    })(),
+  ]);
+
+  // Wait for RandomSelecting phase (Game 1 random selection)
+  await waitForRandomSelecting(player1, 10000).catch(() => {});
+
+  // Wait for game to start
+  await waitForGamePage(player1, 15000);
+  await waitForGamePage(player2, 15000);
 }

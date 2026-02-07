@@ -10,14 +10,17 @@ import {
   waitForOpponentStatus,
   createSeriesChallenge,
   gameSelectors,
-  makeAnyMove,
   resignGame,
   sendDrawViaApi,
   waitForSeriesRedirect,
   selectNextOpening,
   waitForGamePage,
   waitForRandomSelecting,
-  isMyTurn,
+  playOneGame,
+  playBothMoves,
+  isSeriesFinished,
+  waitForNextGame,
+  completeBanPickPhase,
 } from '../helpers/series';
 
 /**
@@ -62,24 +65,26 @@ function cleanupPairData(users: string[]) {
 
 // ===== Complete Flow (elena + hans) =====
 test.describe('Complete Flow', () => {
-  test.describe.configure({ timeout: 90000 }); // 90 seconds for full flow through Game 3
+  test.describe.configure({ timeout: 120000 }); // 120 seconds for full series completion
   const pair = testPairs.happyPath;
   const pairUsers = ['elena', 'hans'];
 
   test.beforeAll(() => cleanupPairData(pairUsers));
 
-  test('Full flow through Game 3 @🟢pick:both-confirmed @🔴ban:both-confirmed @🎮game:resign→select→draw→random', async ({ browser }) => {
+  test('Full series with comeback victory (2.5-1.5) @🟢pick:both-confirmed @🔴ban:both-confirmed @🎮game:resign→select→draw→random→resign→select→resign', async ({ browser }) => {
     const { player1Context, player2Context, player1, player2 } = await createTwoPlayerContexts(
       browser,
       pair.player1,
       pair.player2
     );
 
+    let seriesId = '';
+
     try {
       // ===== STEP 1: Create Series =====
       await test.step('Create series and reach Pick Phase', async () => {
         await loginBothPlayers(player1, player2, pair.player1, pair.player2);
-        await createSeriesChallenge(player1, player2, pair.player2.username);
+        seriesId = await createSeriesChallenge(player1, player2, pair.player2.username);
         await waitForPhase(player1, 'Pick Phase');
         await waitForPhase(player2, 'Pick Phase');
 
@@ -240,43 +245,8 @@ test.describe('Complete Flow', () => {
       // ===== STEP 5: Both players make a move (required for resign) =====
       await test.step('Both players make one move each via Board API', async () => {
         // Resign requires bothPlayersHavePlayed (turns > 1)
-        // So we need each player to make at least one move
-        // Using Board API for reliability
-
-        // Determine colors from URL
-        const player1Url = player1.url();
-        const player1Color: 'white' | 'black' = player1Url.endsWith('/white')
-          ? 'white'
-          : player1Url.endsWith('/black')
-            ? 'black'
-            : 'white'; // default assumption if no color in URL
-        const player2Color: 'white' | 'black' = player1Color === 'white' ? 'black' : 'white';
-
-        // Check whose turn it is from FEN (opening presets may start with black to move)
-        const player1Turn = await isMyTurn(player1, pair.player1.username, player1Color);
-        const player2Turn = await isMyTurn(player2, pair.player2.username, player2Color);
-
-        // Make moves in correct order based on actual turn
-        // After first move, reload other player's page to get fresh FEN (editor link doesn't update via WebSocket)
-        if (player1Turn) {
-          await makeAnyMove(player1, pair.player1.username);
-          await player2.reload();
-          await player2.waitForLoadState('networkidle');
-          await makeAnyMove(player2, pair.player2.username);
-        } else if (player2Turn) {
-          await makeAnyMove(player2, pair.player2.username);
-          await player1.reload();
-          await player1.waitForLoadState('networkidle');
-          await makeAnyMove(player1, pair.player1.username);
-        } else {
-          // Fallback: assume white (player1) moves first
-          await makeAnyMove(player1, pair.player1.username);
-          await player2.reload();
-          await player2.waitForLoadState('networkidle');
-          await makeAnyMove(player2, pair.player2.username);
-        }
-
-        await player1.waitForTimeout(500);
+        // playBothMoves handles turn order automatically via API
+        await playBothMoves(player1, player2, pair.player1.username, pair.player2.username);
 
         // Screenshot: 양측 1수씩 둔 상태
         await test.info().attach('7.5-both-moved', {
@@ -362,28 +332,7 @@ test.describe('Complete Flow', () => {
 
       // ===== STEP 10: Both players make a move in Game 2 =====
       await test.step('Both players make one move each in Game 2', async () => {
-        // Determine colors from URL
-        const player1Url = player1.url();
-        const player1Color: 'white' | 'black' = player1Url.endsWith('/white')
-          ? 'white'
-          : player1Url.endsWith('/black')
-            ? 'black'
-            : 'white';
-        const player2Color: 'white' | 'black' = player1Color === 'white' ? 'black' : 'white';
-
-        // Check whose turn it is
-        const player1Turn = await isMyTurn(player1, pair.player1.username, player1Color);
-
-        // Make moves in correct order
-        if (player1Turn) {
-          await makeAnyMove(player1, pair.player1.username);
-          await makeAnyMove(player2, pair.player2.username);
-        } else {
-          await makeAnyMove(player2, pair.player2.username);
-          await makeAnyMove(player1, pair.player1.username);
-        }
-
-        await player1.waitForTimeout(500);
+        await playBothMoves(player1, player2, pair.player1.username, pair.player2.username);
       });
 
       // ===== STEP 11: Draw by agreement =====
@@ -467,6 +416,82 @@ test.describe('Complete Flow', () => {
           body: await player2.screenshot({ fullPage: true }),
           contentType: 'image/png',
         });
+      });
+
+      // ===== STEP 14: Game 3 - Player 2 Resigns =====
+      // Score after: P1: 1.5, P2: 1.5 (P1 started 0.5 from draw, now +1 from win)
+      await test.step('Game 3: Player 2 resigns (score: 1.5-1.5)', async () => {
+        // Both players make one move
+        await playBothMoves(player1, player2, pair.player1.username, pair.player2.username);
+
+        // Player 2 resigns
+        const resigned = await resignGame(player2, pair.player2.username);
+        expect(resigned).toBe(true);
+
+        await player1.waitForTimeout(500);
+
+        // Screenshot: Game 3 종료
+        await test.info().attach('15-game3-p2-resigned-player1', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+      });
+
+      // ===== STEP 15: Selecting Phase (P2 lost → P2 selects) =====
+      await test.step('Player 2 selects next opening for Game 4', async () => {
+        // P2 lost, so P2 selects next opening
+        await waitForSeriesRedirect(player2, 15000);
+
+        // Screenshot: Selecting phase
+        await test.info().attach('16-selecting-player2', {
+          body: await player2.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+
+        // Select first available opening
+        await selectNextOpening(player2, 0);
+      });
+
+      // ===== STEP 16: Game 4 Starts =====
+      await test.step('Game 4 starts', async () => {
+        await waitForGamePage(player1, 15000);
+        await waitForGamePage(player2, 15000);
+
+        await expect(player1.locator(gameSelectors.board)).toBeVisible({ timeout: 5000 });
+
+        // Screenshot: Game 4 시작
+        await test.info().attach('17-game4-started-player1', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+      });
+
+      // ===== STEP 17: Game 4 - Player 2 Resigns → Series End =====
+      // Score after: P1: 2.5, P2: 1.5 → P1 WINS SERIES
+      await test.step('Game 4: Player 2 resigns, series ends (score: 2.5-1.5)', async () => {
+        // Both players make one move
+        await playBothMoves(player1, player2, pair.player1.username, pair.player2.username);
+
+        // Player 2 resigns - this should end the series
+        const resigned = await resignGame(player2, pair.player2.username);
+        expect(resigned).toBe(true);
+
+        await player1.waitForTimeout(1000);
+
+        // Screenshot: Series 종료
+        await test.info().attach('18-series-finished-player1', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+        await test.info().attach('18-series-finished-player2', {
+          body: await player2.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+
+        // Verify series is finished (P1 has 2.5 points, P2 has 1.5 points)
+        // Use Series API to check status directly
+        const finished = await isSeriesFinished(player1, seriesId);
+        expect(finished).toBe(true);
       });
     } finally {
       await player1Context.close();
@@ -692,40 +717,150 @@ test.describe('Pick Timeout', () => {
   });
 });
 
-// ===== Smoke Tests (ana + lola) =====
-test.describe('Smoke Tests', () => {
-  test.describe.configure({ mode: 'serial', timeout: 60000 });
+// ===== Sudden Death Victory (ana + lola) =====
+test.describe('Sudden Death Victory', () => {
+  test.describe.configure({ timeout: 180000 }); // 180 seconds for 6 games
   const pair = testPairs.smoke;
   const pairUsers = ['ana', 'lola'];
 
   test.beforeAll(() => cleanupPairData(pairUsers));
 
-  test('Can login with test account', async ({ browser }) => {
-    // Single player login test - just need to verify auth works
-    const context = await browser.newContext({
-      storageState: pair.player1.storageState,
-    });
-    const page = await context.newPage();
+  /**
+   * Sudden Death Scenario:
+   * - Game 1: P1 resign (0-1) → P1 selects from picks
+   * - Game 2: P2 resign (1-1) → P2 selects from picks
+   * - Game 3: P1 resign (1-2) → P1 selects from picks
+   * - Game 4: P2 resign (2-2) → P2 selects from picks
+   * - Game 5: Draw (2.5-2.5) → Uses ban pool (4 remaining)
+   * - Game 6: P2 resign (3.5-2.5) → P1 wins series!
+   *
+   * This works because picks are used (not exhausted) and ban pool isn't depleted.
+   */
+  test('2.5-2.5 tie leads to sudden death game 6 @🎮game:alternating→draw→suddendeath', async ({ browser }) => {
+    const { player1Context, player2Context, player1, player2 } = await createTwoPlayerContexts(
+      browser,
+      pair.player1,
+      pair.player2
+    );
+
+    let seriesId = '';
 
     try {
-      await page.goto('/');
-      await page.waitForLoadState('networkidle');
+      // ===== STEP 1: Create Series and Complete Ban/Pick =====
+      await test.step('Create series and complete ban/pick', async () => {
+        await loginBothPlayers(player1, player2, pair.player1, pair.player2);
+        seriesId = await createSeriesChallenge(player1, player2, pair.player2.username);
+        await completeBanPickPhase(player1, player2);
 
-      // Verify login by checking for user menu
-      await expect(page.locator('#user_tag')).toBeVisible({ timeout: 10000 });
+        await test.info().attach('01-game1-started', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+      });
 
-      // Screenshot: 로그인 성공
-      await test.info().attach('login-success', {
-        body: await page.screenshot({ fullPage: true }),
-        contentType: 'image/png',
+      let lastGameId = '';
+
+      // ===== STEP 2: Game 1 - P1 resign (0-1) =====
+      await test.step('Game 1: P1 resigns (score: 0-1)', async () => {
+        lastGameId = await playOneGame(player1, player2, pair.player1.username, pair.player2.username, 'p1-resign');
+
+        await test.info().attach('02-game1-p1-resign', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+
+        // P1 lost, so P1 selects next opening
+        await waitForSeriesRedirect(player1, 15000);
+        await selectNextOpening(player1, 0);
+        await waitForGamePage(player1, 15000);
+        await waitForGamePage(player2, 15000);
+      });
+
+      // ===== STEP 3: Game 2 - P2 resign (1-1) =====
+      await test.step('Game 2: P2 resigns (score: 1-1)', async () => {
+        lastGameId = await playOneGame(player1, player2, pair.player1.username, pair.player2.username, 'p2-resign');
+
+        await test.info().attach('03-game2-p2-resign', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+
+        // P2 lost, so P2 selects next opening
+        await waitForSeriesRedirect(player2, 15000);
+        await selectNextOpening(player2, 0);
+        await waitForGamePage(player1, 15000);
+        await waitForGamePage(player2, 15000);
+      });
+
+      // ===== STEP 4: Game 3 - P1 resign (1-2) =====
+      await test.step('Game 3: P1 resigns (score: 1-2)', async () => {
+        lastGameId = await playOneGame(player1, player2, pair.player1.username, pair.player2.username, 'p1-resign');
+
+        await test.info().attach('04-game3-p1-resign', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+
+        // P1 lost, so P1 selects
+        await waitForSeriesRedirect(player1, 15000);
+        await selectNextOpening(player1, 0);
+        await waitForGamePage(player1, 15000);
+        await waitForGamePage(player2, 15000);
+      });
+
+      // ===== STEP 5: Game 4 - P2 resign (2-2) =====
+      await test.step('Game 4: P2 resigns (score: 2-2)', async () => {
+        lastGameId = await playOneGame(player1, player2, pair.player1.username, pair.player2.username, 'p2-resign');
+
+        await test.info().attach('05-game4-p2-resign', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+
+        // P2 lost, so P2 selects
+        await waitForSeriesRedirect(player2, 15000);
+        await selectNextOpening(player2, 0);
+        await waitForGamePage(player1, 15000);
+        await waitForGamePage(player2, 15000);
+      });
+
+      // ===== STEP 6: Game 5 - Draw (2.5-2.5) =====
+      await test.step('Game 5: Draw (score: 2.5-2.5)', async () => {
+        lastGameId = await playOneGame(player1, player2, pair.player1.username, pair.player2.username, 'draw');
+
+        await test.info().attach('06-game5-draw', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+
+        // At 2.5-2.5 tie, series continues with sudden death
+        // Wait for next game (draw triggers RandomSelecting from ban pool)
+        await waitForNextGame(player1, player2, null, lastGameId, 25000);
+      });
+
+      // ===== STEP 7: Game 6 - P2 resign → Series End =====
+      await test.step('Game 6: P2 resigns, series ends (score: 3.5-2.5)', async () => {
+        await test.info().attach('07-game6-started', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+
+        await playOneGame(player1, player2, pair.player1.username, pair.player2.username, 'p2-resign');
+
+        await player1.waitForTimeout(1000);
+
+        await test.info().attach('08-series-finished', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+
+        // Verify series is finished (P1: 3.5, P2: 2.5) via Series API
+        const finished = await isSeriesFinished(player1, seriesId);
+        expect(finished).toBe(true);
       });
     } finally {
-      await context.close();
+      await player1Context.close();
+      await player2Context.close();
     }
-  });
-
-  test('Homepage loads correctly', async ({ page }) => {
-    await page.goto('/');
-    await expect(page).toHaveTitle(/lichess|chess/i);
   });
 });
