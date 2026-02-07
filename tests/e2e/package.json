@@ -9,12 +9,17 @@
     "test:ui": "playwright test --ui",
     "report": "playwright show-report"
   },
-  "keywords": ["e2e", "playwright", "chess"],
+  "keywords": [
+    "e2e",
+    "playwright",
+    "chess"
+  ],
   "author": "",
   "license": "ISC",
   "devDependencies": {
     "@playwright/test": "^1.58.2",
     "@types/node": "^25.2.1",
+    "chess.js": "^1.4.0",
     "typescript": "^5.9.3"
   }
 }

@@ -1,4 +1,5 @@
 import { Page, expect } from '@playwright/test';
+import { Chess } from 'chess.js';
 
 // Selectors matching view.ts structure
 export const selectors = {
@@ -487,4 +488,345 @@ export async function isOnSeriesPickPage(page: Page): Promise<boolean> {
 export function getSeriesIdFromUrl(url: string): string | null {
   const match = url.match(/\/series\/(\w+)/);
   return match?.[1] || null;
+}
+
+// ===== Game Action Helpers =====
+
+/**
+ * Game action selectors
+ */
+export const gameSelectors = {
+  // Chessboard
+  board: 'cg-board, .cg-board',
+  piece: 'piece',
+  square: 'square',
+
+  // Game controls
+  resignBtn: 'button.fbt.resign',
+  resignConfirm: '.act-confirm button.fbt.yes',
+  drawOfferBtn: 'button.fbt.draw-yes',
+  drawConfirm: '.act-confirm button.fbt.yes.draw-yes',
+  drawAcceptBtn: 'button.draw-yes',
+
+  // Game end
+  gameOverlay: '.result-wrap',
+  rematchBtn: 'button.fbt.rematch',
+};
+
+/**
+ * Extract game ID from URL
+ */
+export function getGameIdFromUrl(url: string): string | null {
+  // URL format: /GAMEID or /GAMEID/white or /GAMEID/black
+  const match = url.match(/\/([a-zA-Z0-9]{8,12})(\/(?:white|black))?$/);
+  return match?.[1] || null;
+}
+
+/**
+ * Get username from page (from user menu)
+ */
+export async function getUsername(page: Page): Promise<string> {
+  const userTag = page.locator('#user_tag');
+  const text = await userTag.textContent().catch(() => '');
+  return text?.trim().toLowerCase() || '';
+}
+
+/**
+ * Get current game state via Board API streaming
+ * Returns the initial FEN and all moves played so far
+ * Note: Uses timeout since streaming endpoint never closes
+ */
+export async function getGameStateViaApi(
+  page: Page,
+  username: string,
+  gameId: string
+): Promise<{ initialFen: string; moves: string }> {
+  const token = `lip_${username.toLowerCase()}`;
+  const url = `http://localhost:8080/api/board/game/stream/${gameId}`;
+
+  // Use fetch with AbortController for timeout on streaming response
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+  try {
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/x-ndjson',
+      },
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to get game state: ${response.status}`);
+    }
+
+    // Read only the first chunk (gameFull event)
+    const reader = response.body?.getReader();
+    if (!reader) {
+      throw new Error('No response body');
+    }
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    // Read until we get a complete first line
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const newlineIndex = buffer.indexOf('\n');
+      if (newlineIndex !== -1) {
+        // Got the first complete line
+        const firstLine = buffer.slice(0, newlineIndex);
+        reader.cancel(); // Stop reading
+        const gameFull = JSON.parse(firstLine);
+        return {
+          initialFen: gameFull.initialFen || 'startpos',
+          moves: gameFull.state?.moves || '',
+        };
+      }
+    }
+
+    throw new Error('Stream ended without data');
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+/**
+ * Compute current FEN by applying moves to initial FEN
+ */
+export function computeCurrentFen(initialFen: string, moves: string): string {
+  const chess = new Chess();
+
+  // Handle initialFen ('startpos' means standard starting position)
+  if (initialFen && initialFen !== 'startpos') {
+    chess.load(initialFen);
+  }
+
+  // Apply moves (space-separated UCI notation)
+  if (moves) {
+    const moveList = moves.trim().split(' ').filter(m => m);
+    for (const uci of moveList) {
+      const from = uci.slice(0, 2);
+      const to = uci.slice(2, 4);
+      const promotion = uci.length > 4 ? uci.slice(4) : undefined;
+      chess.move({ from, to, promotion });
+    }
+  }
+
+  return chess.fen();
+}
+
+/**
+ * Make a move using the Board API
+ * This is more reliable than UI clicking
+ *
+ * @param page - Playwright page
+ * @param username - Username to get token (e.g., 'elena' -> 'lip_elena')
+ * @param uci - UCI move string (e.g., 'e2e4', 'g1f3')
+ */
+export async function makeMoveViaApi(
+  page: Page,
+  username: string,
+  uci: string
+): Promise<boolean> {
+  const gameId = getGameIdFromUrl(page.url());
+  if (!gameId) {
+    throw new Error('Could not extract game ID from URL');
+  }
+
+  const token = `lip_${username.toLowerCase()}`;
+  const url = `http://localhost:8080/api/board/game/${gameId}/move/${uci}`;
+
+  const response = await page.request.post(url, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok()) {
+    const body = await response.text();
+    console.log(`[makeMoveViaApi] FAILED: ${url} token=${token} status=${response.status()} body=${body}`);
+  }
+
+  return response.ok();
+}
+
+/**
+ * Check if it's our turn to move
+ * Returns true if it's the specified color's turn
+ * Uses Board API streaming to get accurate current game state
+ */
+export async function isMyTurn(
+  page: Page,
+  username: string,
+  myColor: 'white' | 'black'
+): Promise<boolean> {
+  const gameId = getGameIdFromUrl(page.url());
+  if (!gameId) return myColor === 'white';
+
+  try {
+    const { initialFen, moves } = await getGameStateViaApi(page, username, gameId);
+    const currentFen = computeCurrentFen(initialFen, moves);
+    const chess = new Chess(currentFen);
+    const turnColor = chess.turn(); // 'w' or 'b'
+
+    return (turnColor === 'w' && myColor === 'white') ||
+           (turnColor === 'b' && myColor === 'black');
+  } catch {
+    return myColor === 'white';
+  }
+}
+
+/**
+ * Make any legal move on the board using Board API
+ * Uses Board API streaming to get current game state, then chess.js to compute legal moves
+ */
+export async function makeAnyMove(page: Page, username?: string): Promise<void> {
+  // Wait for board to be ready
+  await expect(page.locator(gameSelectors.board)).toBeVisible({ timeout: 5000 });
+
+  // Get username if not provided
+  const user = username || (await getUsername(page));
+  const gameId = getGameIdFromUrl(page.url());
+
+  if (!user || !gameId) {
+    throw new Error(`Could not determine username (${user}) or gameId (${gameId})`);
+  }
+
+  // Get current game state via Board API
+  const { initialFen, moves } = await getGameStateViaApi(page, user, gameId);
+
+  // Compute current FEN by applying moves to initial FEN
+  const currentFen = computeCurrentFen(initialFen, moves);
+
+  // Use chess.js to get legal moves from current position
+  const chess = new Chess(currentFen);
+  const legalMoves = chess.moves({ verbose: true });
+
+  if (legalMoves.length === 0) {
+    throw new Error('No legal moves available');
+  }
+
+  // Make the first legal move
+  const move = legalMoves[0];
+  const uci = move.from + move.to + (move.promotion || '');
+
+  console.log(`[makeAnyMove] user=${user}, gameId=${gameId}, currentFen=${currentFen}, move=${uci}`);
+
+  const success = await makeMoveViaApi(page, user, uci);
+  if (!success) {
+    throw new Error(`Move ${uci} rejected by API for ${user} (gameId=${gameId})`);
+  }
+
+  await page.waitForTimeout(300);
+}
+
+/**
+ * Resign the current game
+ * Note: Both players must have moved at least once before resign is available
+ */
+export async function resignGame(page: Page): Promise<void> {
+  // Click resign button
+  const resignBtn = page.locator(gameSelectors.resignBtn);
+  await expect(resignBtn).toBeVisible({ timeout: 5000 });
+  await resignBtn.click();
+
+  // Confirm resignation
+  const confirmBtn = page.locator(gameSelectors.resignConfirm);
+  await expect(confirmBtn).toBeVisible({ timeout: 3000 });
+  await confirmBtn.click();
+
+  // Wait for game to end
+  await page.waitForTimeout(1000);
+}
+
+/**
+ * Offer a draw
+ */
+export async function offerDraw(page: Page): Promise<void> {
+  // Click draw button to show confirmation
+  const drawBtn = page.locator('button.fbt:has([data-icon])').filter({ hasText: /½|draw/i }).first();
+  if (await drawBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
+    await drawBtn.click();
+    // Confirm draw offer
+    const confirmBtn = page.locator('.act-confirm button.fbt.yes');
+    await expect(confirmBtn).toBeVisible({ timeout: 3000 });
+    await confirmBtn.click();
+  }
+}
+
+/**
+ * Accept a draw offer
+ */
+export async function acceptDraw(page: Page): Promise<void> {
+  // Look for draw accept button (appears when opponent offered)
+  const drawAcceptBtn = page.locator('button.draw-yes, button:has-text("Accept draw")');
+  await expect(drawAcceptBtn.first()).toBeVisible({ timeout: 10000 });
+  await drawAcceptBtn.first().click();
+}
+
+/**
+ * Wait for redirect to series pick page (after game ends)
+ */
+export async function waitForSeriesRedirect(page: Page, timeout = 15000): Promise<string> {
+  await page.waitForURL(/\/series\/\w+\/pick/, { timeout });
+  const match = page.url().match(/\/series\/(\w+)/);
+  return match?.[1] || '';
+}
+
+/**
+ * Wait for game page to load
+ */
+export async function waitForGamePage(page: Page, timeout = 15000): Promise<void> {
+  await page.waitForURL(/\/[a-zA-Z0-9]{8,12}(\/white|\/black)?$/, { timeout });
+  await expect(page.locator(gameSelectors.board)).toBeVisible({ timeout: 5000 });
+}
+
+/**
+ * Check if on game page
+ */
+export async function isOnGamePage(page: Page): Promise<boolean> {
+  const url = page.url();
+  return /\/[a-zA-Z0-9]{8,12}(\/white|\/black)?$/.test(url);
+}
+
+/**
+ * Check current series phase from the pick page (detailed)
+ */
+export async function getSeriesPhase(page: Page): Promise<string> {
+  // Check for specific phase indicators
+  if (await page.locator(selectors.randomSelecting).isVisible({ timeout: 500 }).catch(() => false)) {
+    return 'RandomSelecting';
+  }
+  if (await page.locator(selectors.selectingWaiting).isVisible({ timeout: 500 }).catch(() => false)) {
+    return 'SelectingWaiting';
+  }
+  // Check header text for phase
+  const header = await page.locator(selectors.header).textContent().catch(() => '');
+  if (header?.includes('Pick')) return 'Picking';
+  if (header?.includes('Ban')) return 'Banning';
+  if (header?.includes('Select')) return 'Selecting';
+  return 'Unknown';
+}
+
+/**
+ * Select next opening in Selecting phase (loser selects)
+ */
+export async function selectNextOpening(page: Page, openingIndex = 0): Promise<void> {
+  // Wait for selecting phase
+  const openings = page.locator(`${selectors.opening}:not(.disabled)`);
+  await expect(openings.first()).toBeVisible({ timeout: 5000 });
+
+  // Click on the specified opening
+  await openings.nth(openingIndex).click();
+  await page.waitForTimeout(500);
+
+  // Confirm selection
+  const confirmBtn = page.locator(selectors.anyConfirmBtn);
+  await expect(confirmBtn).toBeVisible({ timeout: 3000 });
+  await confirmBtn.click();
 }

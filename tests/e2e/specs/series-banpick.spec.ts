@@ -9,6 +9,13 @@ import {
   waitForPhase,
   waitForOpponentStatus,
   createSeriesChallenge,
+  gameSelectors,
+  makeAnyMove,
+  resignGame,
+  waitForSeriesRedirect,
+  selectNextOpening,
+  waitForGamePage,
+  isMyTurn,
 } from '../helpers/series';
 
 /**
@@ -17,13 +24,18 @@ import {
  * Tags describe phase outcomes:
  *   @🟢pick:{state} - Pick phase (green)
  *   @🔴ban:{state}  - Ban phase (red)
+ *   @🎮game:{flow}  - Game phase flow (blue)
  *
- * States:
+ * Pick/Ban States:
  *   both-confirmed          - Both players confirmed
  *   one-confirmed-one-timeout - One confirmed, other timed out
  *   both-partial-timeout    - Both partially selected, then timed out
  *   both-timeout            - Neither confirmed, server auto-filled
  *   one-confirmed-one-disconnected - One confirmed, other disconnected
+ *
+ * Game Flows:
+ *   resign→select           - Player resigns, loser selects next opening
+ *   draw→random             - Game draws, random selection for next game
  */
 
 // Cleanup helper for specific user pair
@@ -48,13 +60,13 @@ function cleanupPairData(users: string[]) {
 
 // ===== Complete Flow (elena + hans) =====
 test.describe('Complete Flow', () => {
-  test.describe.configure({ timeout: 120000 }); // 2 minutes for full flow
+  test.describe.configure({ timeout: 60000 }); // 60 seconds for full flow through Game 2
   const pair = testPairs.happyPath;
   const pairUsers = ['elena', 'hans'];
 
   test.beforeAll(() => cleanupPairData(pairUsers));
 
-  test('Game starts @🟢pick:both-confirmed @🔴ban:both-confirmed', async ({ browser }) => {
+  test('Full flow through Game 2 @🟢pick:both-confirmed @🔴ban:both-confirmed @🎮game:resign→select', async ({ browser }) => {
     const { player1Context, player2Context, player1, player2 } = await createTwoPlayerContexts(
       browser,
       pair.player1,
@@ -203,20 +215,141 @@ test.describe('Complete Flow', () => {
       });
 
       // ===== STEP 4: Game Start =====
-      await test.step('Game starts successfully', async () => {
+      await test.step('Game 1 starts successfully', async () => {
         // Wait for redirect to game page (URL may end with /white or /black)
         await player1.waitForURL(/\/[a-zA-Z0-9]{8,12}(\/white|\/black)?$/, { timeout: 15000 });
         await player2.waitForURL(/\/[a-zA-Z0-9]{8,12}(\/white|\/black)?$/, { timeout: 15000 });
 
         // Verify we're on a game page (should have board)
-        await expect(player1.locator('cg-board, .cg-board')).toBeVisible({ timeout: 5000 });
+        await expect(player1.locator(gameSelectors.board)).toBeVisible({ timeout: 5000 });
+        await expect(player2.locator(gameSelectors.board)).toBeVisible({ timeout: 5000 });
 
         // Screenshot: 게임 시작
-        await test.info().attach('7-game-started-player1', {
+        await test.info().attach('7-game1-started-player1', {
           body: await player1.screenshot({ fullPage: true }),
           contentType: 'image/png',
         });
-        await test.info().attach('7-game-started-player2', {
+        await test.info().attach('7-game1-started-player2', {
+          body: await player2.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+      });
+
+      // ===== STEP 5: Both players make a move (required for resign) =====
+      await test.step('Both players make one move each via Board API', async () => {
+        // Resign requires bothPlayersHavePlayed (turns > 1)
+        // So we need each player to make at least one move
+        // Using Board API for reliability
+
+        // Determine colors from URL
+        const player1Url = player1.url();
+        const player1Color: 'white' | 'black' = player1Url.endsWith('/white')
+          ? 'white'
+          : player1Url.endsWith('/black')
+            ? 'black'
+            : 'white'; // default assumption if no color in URL
+        const player2Color: 'white' | 'black' = player1Color === 'white' ? 'black' : 'white';
+
+        // Check whose turn it is from FEN (opening presets may start with black to move)
+        const player1Turn = await isMyTurn(player1, pair.player1.username, player1Color);
+        const player2Turn = await isMyTurn(player2, pair.player2.username, player2Color);
+
+        // Make moves in correct order based on actual turn
+        // After first move, reload other player's page to get fresh FEN (editor link doesn't update via WebSocket)
+        if (player1Turn) {
+          await makeAnyMove(player1, pair.player1.username);
+          await player2.reload();
+          await player2.waitForLoadState('networkidle');
+          await makeAnyMove(player2, pair.player2.username);
+        } else if (player2Turn) {
+          await makeAnyMove(player2, pair.player2.username);
+          await player1.reload();
+          await player1.waitForLoadState('networkidle');
+          await makeAnyMove(player1, pair.player1.username);
+        } else {
+          // Fallback: assume white (player1) moves first
+          await makeAnyMove(player1, pair.player1.username);
+          await player2.reload();
+          await player2.waitForLoadState('networkidle');
+          await makeAnyMove(player2, pair.player2.username);
+        }
+
+        await player1.waitForTimeout(500);
+
+        // Screenshot: 양측 1수씩 둔 상태
+        await test.info().attach('7.5-both-moved', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+      });
+
+      // ===== STEP 6: Player 1 Resigns =====
+      await test.step('Player 1 resigns Game 1', async () => {
+        // Now resign should be available
+        await resignGame(player1);
+
+        // Screenshot: Game 1 종료 (Player 1 패배)
+        await test.info().attach('8-game1-resigned-player1', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+        await test.info().attach('8-game1-resigned-player2', {
+          body: await player2.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+      });
+
+      // ===== STEP 7: Selecting Phase (Loser Selects) =====
+      await test.step('Loser (Player 1) enters Selecting Phase', async () => {
+        // Player 1 (loser) should be redirected to series pick page in Selecting phase
+        // Player 2 (winner) should see waiting screen
+        await waitForSeriesRedirect(player1, 20000);
+        await waitForSeriesRedirect(player2, 20000);
+
+        // Screenshot: Selecting Phase
+        await test.info().attach('9-selecting-phase-player1', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+        await test.info().attach('9-selecting-phase-player2', {
+          body: await player2.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+
+        // Player 1 (loser) should see openings to select from
+        // Player 2 (winner) should be in waiting mode
+        const player1HasOpenings = await player1.locator(selectors.opening).count();
+        expect(player1HasOpenings).toBeGreaterThan(0);
+      });
+
+      // ===== STEP 8: Loser Selects Next Opening =====
+      await test.step('Loser selects next opening for Game 2', async () => {
+        // Player 1 selects an opening for Game 2
+        await selectNextOpening(player1, 0);
+
+        // Screenshot: 오프닝 선택 완료
+        await test.info().attach('10-opening-selected', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+      });
+
+      // ===== STEP 9: Game 2 Starts =====
+      await test.step('Game 2 starts successfully', async () => {
+        // Wait for redirect to game page
+        await waitForGamePage(player1, 15000);
+        await waitForGamePage(player2, 15000);
+
+        // Verify we're on a game page
+        await expect(player1.locator(gameSelectors.board)).toBeVisible({ timeout: 5000 });
+        await expect(player2.locator(gameSelectors.board)).toBeVisible({ timeout: 5000 });
+
+        // Screenshot: Game 2 시작
+        await test.info().attach('11-game2-started-player1', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+        await test.info().attach('11-game2-started-player2', {
           body: await player2.screenshot({ fullPage: true }),
           contentType: 'image/png',
         });
