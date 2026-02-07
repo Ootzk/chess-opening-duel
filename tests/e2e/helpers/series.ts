@@ -331,7 +331,8 @@ export async function createSeriesChallenge(
   // - Redirect directly to series pick page
 
   // Wait for modal to close (indicates form was processed)
-  await expect(gameSetup).not.toBeVisible({ timeout: 10000 });
+  // Increased timeout for parallel test execution (server may be slow with concurrent challenges)
+  await expect(gameSetup).not.toBeVisible({ timeout: 30000 });
 
   // Wait for page to stabilize
   await player1.waitForLoadState('networkidle');

@@ -5,7 +5,7 @@ export default defineConfig({
   fullyParallel: true, // 각 테스트가 독립적인 계정 쌍 사용 → 병렬 실행 가능
   forbidOnly: !!process.env.CI,
   retries: 0, // No retries - fail fast
-  workers: 5, // 5 test pairs = 5 parallel workers
+  workers: 3, // 3 workers optimal with rate limiting disabled
   reporter: 'html',
 
   // Global setup: 테스트 전 한 번만 로그인

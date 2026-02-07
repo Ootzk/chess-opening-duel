@@ -1,23 +1,29 @@
 import { chromium, FullConfig } from '@playwright/test';
 
-// 5 test account pairs for parallel test execution
+// 7 test account pairs for parallel test execution
 // Each pair tests different scenarios independently
 const users = [
-  // Pair 1: elena + hans (happy path: pick confirm → ban confirm → game)
+  // Pair 1: elena + hans (happy path: 4-game comeback 2.5-1.5)
   { username: 'elena', password: 'password', file: '.auth/elena.json' },
   { username: 'hans', password: 'password', file: '.auth/hans.json' },
-  // Pair 2: boris + david (pick OK → ban timeout)
+  // Pair 2: boris + david (ban timeout)
   { username: 'boris', password: 'password', file: '.auth/boris.json' },
   { username: 'david', password: 'password', file: '.auth/david.json' },
-  // Pair 3: yulia + luis (pick OK → disconnect during ban)
+  // Pair 3: yulia + luis (3-0 sweep)
   { username: 'yulia', password: 'password', file: '.auth/yulia.json' },
   { username: 'luis', password: 'password', file: '.auth/luis.json' },
   // Pair 4: mei + ivan (pick timeout)
   { username: 'mei', password: 'password', file: '.auth/mei.json' },
   { username: 'ivan', password: 'password', file: '.auth/ivan.json' },
-  // Pair 5: ana + lola (smoke tests)
+  // Pair 5: ana + lola (sudden death 3.5-2.5)
   { username: 'ana', password: 'password', file: '.auth/ana.json' },
   { username: 'lola', password: 'password', file: '.auth/lola.json' },
+  // Pair 6: carlos + nina (dramatic comeback 0-2 → 3-2)
+  { username: 'carlos', password: 'password', file: '.auth/carlos.json' },
+  { username: 'nina', password: 'password', file: '.auth/nina.json' },
+  // Pair 7: oscar + petra (early win 2.5-0.5)
+  { username: 'oscar', password: 'password', file: '.auth/oscar.json' },
+  { username: 'petra', password: 'password', file: '.auth/petra.json' },
 ];
 
 async function loginWithRetry(

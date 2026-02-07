@@ -24,6 +24,12 @@ export const users = {
   // Pair 5: Smoke tests (quick sanity checks)
   ana: { username: 'ana', password: 'password', storageState: '.auth/ana.json' },
   lola: { username: 'lola', password: 'password', storageState: '.auth/lola.json' },
+  // Pair 6: Victory condition - 3-2 comeback
+  carlos: { username: 'carlos', password: 'password', storageState: '.auth/carlos.json' },
+  nina: { username: 'nina', password: 'password', storageState: '.auth/nina.json' },
+  // Pair 7: Victory condition - 2.5-0.5 early win
+  oscar: { username: 'oscar', password: 'password', storageState: '.auth/oscar.json' },
+  petra: { username: 'petra', password: 'password', storageState: '.auth/petra.json' },
 } as const;
 
 // Typed user pairs for different test scenarios
@@ -34,12 +40,16 @@ export const testPairs = {
   happyPath: { player1: users.elena, player2: users.hans },
   // Ban timeout: player2 doesn't confirm bans
   banTimeout: { player1: users.boris, player2: users.david },
-  // Disconnect: player2 disconnects during ban phase
-  disconnect: { player1: users.yulia, player2: users.luis },
+  // Victory condition: 3-0 sweep (reusing disconnect pair)
+  sweep: { player1: users.yulia, player2: users.luis },
   // Pick timeout: neither player confirms picks
   pickTimeout: { player1: users.mei, player2: users.ivan },
-  // Smoke tests: quick sanity checks
+  // Smoke tests: sudden death victory
   smoke: { player1: users.ana, player2: users.lola },
+  // Victory condition: 3-2 dramatic comeback (0-2 → 3-2)
+  comeback: { player1: users.carlos, player2: users.nina },
+  // Victory condition: 2.5-0.5 early win (2 wins + 1 draw)
+  earlyWin: { player1: users.oscar, player2: users.petra },
 } as const;
 
 /**

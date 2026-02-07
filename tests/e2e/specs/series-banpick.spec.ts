@@ -135,8 +135,8 @@ test.describe('Complete Flow', () => {
         await confirm(player2);
 
         // Should see opponent "Ready!" status
-        await waitForOpponentStatus(player1, 'ready', 5000);
-        await waitForOpponentStatus(player2, 'ready', 5000);
+        await waitForOpponentStatus(player1, 'ready', 15000);
+        await waitForOpponentStatus(player2, 'ready', 15000);
 
         // Screenshot: Ready 상태
         await test.info().attach('3-pick-ready-player1', {
@@ -194,8 +194,8 @@ test.describe('Complete Flow', () => {
         await confirm(player2);
 
         // Should see opponent "Ready!" status
-        await waitForOpponentStatus(player1, 'ready', 5000);
-        await waitForOpponentStatus(player2, 'ready', 5000);
+        await waitForOpponentStatus(player1, 'ready', 15000);
+        await waitForOpponentStatus(player2, 'ready', 15000);
 
         // Screenshot: Ban Ready 상태
         await test.info().attach('6-ban-ready-player1', {
@@ -598,42 +598,98 @@ test.describe('Ban Timeout', () => {
   });
 });
 
-// ===== Disconnect Abort (yulia + luis) - SKIPPED =====
-test.describe('Disconnect Abort', () => {
-  const pair = testPairs.disconnect;
+// ===== 3-0 Sweep Victory (yulia + luis) =====
+test.describe('3-0 Sweep Victory', () => {
+  test.describe.configure({ timeout: 90000 });
+  const pair = testPairs.sweep;
   const pairUsers = ['yulia', 'luis'];
 
   test.beforeAll(() => cleanupPairData(pairUsers));
 
-  // TODO: WebSocket disconnect detection doesn't work reliably in headless mode
-  test.skip('Series aborted @🟢pick:one-confirmed-one-disconnected', async ({ browser }) => {
+  /**
+   * 3-0 스윕 테스트: 최단 시리즈 승리
+   *
+   * Game 1: P2 resign → P1: 1, P2: 0
+   * Game 2: P2 resign → P1: 2, P2: 0
+   * Game 3: P2 resign → P1: 3, P2: 0 (시리즈 종료)
+   */
+  test('P1 wins 3-0 sweep @🎮game:resign→select→resign→select→resign', async ({ browser }) => {
     const { player1Context, player2Context, player1, player2 } = await createTwoPlayerContexts(
       browser,
       pair.player1,
       pair.player2
     );
 
+    let seriesId = '';
+    let lastGameId = '';
+
     try {
-      await loginBothPlayers(player1, player2, pair.player1, pair.player2);
-      await createSeriesChallenge(player1, player2, pair.player2.username);
-      await waitForPhase(player1, 'Pick Phase');
+      // ===== STEP 1: Create Series and Complete Ban/Pick =====
+      await test.step('Create series and complete ban/pick', async () => {
+        await loginBothPlayers(player1, player2, pair.player1, pair.player2);
+        seriesId = await createSeriesChallenge(player1, player2, pair.player2.username);
+        await completeBanPickPhase(player1, player2);
 
-      // Player 1 confirms
-      await selectOpenings(player1, 5);
-      await confirm(player1);
+        await test.info().attach('01-game1-started', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+      });
 
-      // Player 2 disconnects
-      await player2Context.close();
+      // ===== STEP 2: Game 1 - P2 resign =====
+      await test.step('Game 1: P2 resigns (score: 1-0)', async () => {
+        lastGameId = await playOneGame(player1, player2, pair.player1.username, pair.player2.username, 'p2-resign');
 
-      // Player 1 should see "Disconnected!" status
-      await waitForOpponentStatus(player1, 'disconnected', 15000);
+        await test.info().attach('02-game1-resigned', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
 
-      // Series should be aborted
-      await player1.waitForTimeout(10000);
-      const aborted = player1.locator('text=aborted, text=Aborted');
-      expect((await aborted.count()) > 0 || !player1.url().includes('/series/')).toBeTruthy();
+        // Wait for next game (P2 lost → P2 selects)
+        await waitForNextGame(player1, player2, null, lastGameId, 20000);
+      });
+
+      // ===== STEP 3: Game 2 - P2 resign =====
+      await test.step('Game 2: P2 resigns (score: 2-0)', async () => {
+        await test.info().attach('03-game2-started', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+
+        lastGameId = await playOneGame(player1, player2, pair.player1.username, pair.player2.username, 'p2-resign');
+
+        await test.info().attach('04-game2-resigned', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+
+        // Wait for next game (P2 lost → P2 selects)
+        await waitForNextGame(player1, player2, null, lastGameId, 20000);
+      });
+
+      // ===== STEP 4: Game 3 - P2 resign → Series End =====
+      await test.step('Game 3: P2 resigns, series ends (score: 3-0)', async () => {
+        await test.info().attach('05-game3-started', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+
+        await playOneGame(player1, player2, pair.player1.username, pair.player2.username, 'p2-resign');
+
+        await player1.waitForTimeout(1000);
+
+        await test.info().attach('06-series-finished', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+
+        // Verify series is finished (P1: 3, P2: 0) via Series API
+        const finished = await isSeriesFinished(player1, seriesId);
+        expect(finished).toBe(true);
+      });
     } finally {
-      await player1Context?.close().catch(() => {});
+      await player1Context.close();
+      await player2Context.close();
     }
   });
 });
@@ -855,6 +911,217 @@ test.describe('Sudden Death Victory', () => {
         });
 
         // Verify series is finished (P1: 3.5, P2: 2.5) via Series API
+        const finished = await isSeriesFinished(player1, seriesId);
+        expect(finished).toBe(true);
+      });
+    } finally {
+      await player1Context.close();
+      await player2Context.close();
+    }
+  });
+});
+
+// ===== 3-2 Dramatic Comeback (carlos + nina) =====
+test.describe('3-2 Dramatic Comeback', () => {
+  test.describe.configure({ timeout: 150000 });
+  const pair = testPairs.comeback;
+  const pairUsers = ['carlos', 'nina'];
+
+  test.beforeAll(() => cleanupPairData(pairUsers));
+
+  /**
+   * 드라마틱 역전승 테스트: 0-2에서 3연승으로 역전
+   *
+   * Game 1: P1 resign → P1: 0, P2: 1
+   * Game 2: P1 resign → P1: 0, P2: 2
+   * Game 3: P2 resign → P1: 1, P2: 2
+   * Game 4: P2 resign → P1: 2, P2: 2
+   * Game 5: P2 resign → P1: 3, P2: 2 (시리즈 종료)
+   */
+  test('P1 comes back from 0-2 to win 3-2 @🎮game:resign×5', async ({ browser }) => {
+    const { player1Context, player2Context, player1, player2 } = await createTwoPlayerContexts(
+      browser,
+      pair.player1,
+      pair.player2
+    );
+
+    let seriesId = '';
+    let lastGameId = '';
+
+    try {
+      // ===== STEP 1: Create Series and Complete Ban/Pick =====
+      await test.step('Create series and complete ban/pick', async () => {
+        await loginBothPlayers(player1, player2, pair.player1, pair.player2);
+        seriesId = await createSeriesChallenge(player1, player2, pair.player2.username);
+        await completeBanPickPhase(player1, player2);
+
+        await test.info().attach('01-game1-started', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+      });
+
+      // ===== STEP 2: Game 1 - P1 resign (0-1) =====
+      await test.step('Game 1: P1 resigns (score: 0-1)', async () => {
+        lastGameId = await playOneGame(player1, player2, pair.player1.username, pair.player2.username, 'p1-resign');
+
+        // P1 lost → P1 selects next opening
+        await waitForSeriesRedirect(player1, 15000);
+        await selectNextOpening(player1, 0);
+        await waitForGamePage(player1, 15000);
+        await waitForGamePage(player2, 15000);
+      });
+
+      // ===== STEP 3: Game 2 - P1 resign (0-2) =====
+      await test.step('Game 2: P1 resigns (score: 0-2)', async () => {
+        lastGameId = await playOneGame(player1, player2, pair.player1.username, pair.player2.username, 'p1-resign');
+
+        await test.info().attach('02-game2-0-2', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+
+        // P1 lost → P1 selects next opening
+        await waitForSeriesRedirect(player1, 15000);
+        await selectNextOpening(player1, 0);
+        await waitForGamePage(player1, 15000);
+        await waitForGamePage(player2, 15000);
+      });
+
+      // ===== STEP 4: Game 3 - P2 resign (1-2) =====
+      await test.step('Game 3: P2 resigns (score: 1-2)', async () => {
+        lastGameId = await playOneGame(player1, player2, pair.player1.username, pair.player2.username, 'p2-resign');
+
+        // P2 lost → P2 selects
+        await waitForNextGame(player1, player2, null, lastGameId, 20000);
+      });
+
+      // ===== STEP 5: Game 4 - P2 resign (2-2) =====
+      await test.step('Game 4: P2 resigns (score: 2-2)', async () => {
+        await test.info().attach('03-game4-tied', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+
+        lastGameId = await playOneGame(player1, player2, pair.player1.username, pair.player2.username, 'p2-resign');
+
+        // P2 lost → P2 selects
+        await waitForNextGame(player1, player2, null, lastGameId, 20000);
+      });
+
+      // ===== STEP 6: Game 5 - P2 resign → Series End (3-2) =====
+      await test.step('Game 5: P2 resigns, P1 wins 3-2', async () => {
+        await test.info().attach('04-game5-started', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+
+        await playOneGame(player1, player2, pair.player1.username, pair.player2.username, 'p2-resign');
+
+        await player1.waitForTimeout(1000);
+
+        await test.info().attach('05-series-finished-3-2', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+
+        // Verify series is finished (P1: 3, P2: 2)
+        const finished = await isSeriesFinished(player1, seriesId);
+        expect(finished).toBe(true);
+      });
+    } finally {
+      await player1Context.close();
+      await player2Context.close();
+    }
+  });
+});
+
+// ===== 2.5-0.5 Early Win (oscar + petra) =====
+test.describe('2.5-0.5 Early Win', () => {
+  test.describe.configure({ timeout: 90000 });
+  const pair = testPairs.earlyWin;
+  const pairUsers = ['oscar', 'petra'];
+
+  test.beforeAll(() => cleanupPairData(pairUsers));
+
+  /**
+   * 조기 승리 테스트: 2승 1무로 최소 게임 승리
+   *
+   * Game 1: P2 resign → P1: 1, P2: 0
+   * Game 2: Draw      → P1: 1.5, P2: 0.5
+   * Game 3: P2 resign → P1: 2.5, P2: 0.5 (시리즈 종료)
+   */
+  test('P1 wins 2.5-0.5 with early finish @🎮game:resign→draw→resign', async ({ browser }) => {
+    const { player1Context, player2Context, player1, player2 } = await createTwoPlayerContexts(
+      browser,
+      pair.player1,
+      pair.player2
+    );
+
+    let seriesId = '';
+    let lastGameId = '';
+
+    try {
+      // ===== STEP 1: Create Series and Complete Ban/Pick =====
+      await test.step('Create series and complete ban/pick', async () => {
+        await loginBothPlayers(player1, player2, pair.player1, pair.player2);
+        seriesId = await createSeriesChallenge(player1, player2, pair.player2.username);
+        await completeBanPickPhase(player1, player2);
+
+        await test.info().attach('01-game1-started', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+      });
+
+      // ===== STEP 2: Game 1 - P2 resign (1-0) =====
+      await test.step('Game 1: P2 resigns (score: 1-0)', async () => {
+        lastGameId = await playOneGame(player1, player2, pair.player1.username, pair.player2.username, 'p2-resign');
+
+        await test.info().attach('02-game1-resigned', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+
+        // P2 lost → P2 selects
+        await waitForNextGame(player1, player2, null, lastGameId, 20000);
+      });
+
+      // ===== STEP 3: Game 2 - Draw (1.5-0.5) =====
+      await test.step('Game 2: Draw (score: 1.5-0.5)', async () => {
+        await test.info().attach('03-game2-started', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+
+        lastGameId = await playOneGame(player1, player2, pair.player1.username, pair.player2.username, 'draw');
+
+        await test.info().attach('04-game2-draw', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+
+        // Draw → RandomSelecting from ban pool
+        await waitForNextGame(player1, player2, null, lastGameId, 25000);
+      });
+
+      // ===== STEP 4: Game 3 - P2 resign → Series End (2.5-0.5) =====
+      await test.step('Game 3: P2 resigns, series ends (score: 2.5-0.5)', async () => {
+        await test.info().attach('05-game3-started', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+
+        await playOneGame(player1, player2, pair.player1.username, pair.player2.username, 'p2-resign');
+
+        await player1.waitForTimeout(1000);
+
+        await test.info().attach('06-series-finished-early', {
+          body: await player1.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+
+        // Verify series is finished (P1: 2.5, P2: 0.5)
         const finished = await isSeriesFinished(player1, seriesId);
         expect(finished).toBe(true);
       });

@@ -235,7 +235,7 @@ npm run report           # HTML 테스트 리포트 보기
 tests/e2e/
 ├── package.json           # npm 스크립트
 ├── playwright.config.ts   # Playwright 설정 (reporter: 'html')
-├── global-setup.ts        # 10개 테스트 계정 로그인 + 세션 저장
+├── global-setup.ts        # 14개 테스트 계정 로그인 + 세션 저장
 ├── global-teardown.ts     # DB 리셋 (MongoDB + Redis)
 ├── helpers/
 │   ├── auth.ts            # 로그인 헬퍼, testPairs 정의
@@ -244,15 +244,17 @@ tests/e2e/
     └── series-banpick.spec.ts  # 밴픽 플로우 테스트
 ```
 
-**테스트 계정 (5쌍):**
+**테스트 계정 (7쌍):**
 
 | Pair | Player 1 | Player 2 | 시나리오 |
 |------|----------|----------|----------|
-| 1 | elena | hans | Happy path (Pick → Ban → Game) |
+| 1 | elena | hans | 역전승 4게임 (2.5-1.5) |
 | 2 | boris | david | Ban timeout |
-| 3 | yulia | luis | Disconnect |
+| 3 | yulia | luis | 3-0 스윕 |
 | 4 | mei | ivan | Pick timeout |
-| 5 | ana | lola | Smoke tests |
+| 5 | ana | lola | 서든데스 6게임 (3.5-2.5) |
+| 6 | carlos | nina | 드라마틱 역전 0-2→3-2 |
+| 7 | oscar | petra | 조기 승리 2.5-0.5 |
 
 비밀번호: 전부 `password`
 
