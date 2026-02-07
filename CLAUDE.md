@@ -216,6 +216,45 @@ docker compose exec lila ./lila.sh playRoutes
 ./lila-docker db
 ```
 
+### E2E 테스트 (Playwright)
+
+두 플레이어 동시 제어를 위한 브라우저 자동화 테스트.
+
+```bash
+cd tests/e2e
+npm install              # 최초 1회
+npm test                 # 전체 테스트 (headless)
+npm run test:headed      # 브라우저 표시
+npm run test:debug       # 디버그 모드
+npm run test:ui          # Playwright UI 모드
+npm run report           # 테스트 리포트 보기
+```
+
+**테스트 구조:**
+```
+tests/e2e/
+├── package.json           # npm 스크립트
+├── playwright.config.ts   # Playwright 설정
+├── tsconfig.json          # TypeScript 설정
+├── helpers/
+│   ├── auth.ts            # 로그인 헬퍼 (users.lichess, users.mary 등)
+│   └── series.ts          # 시리즈 조작 헬퍼 (selectPicks, selectBans 등)
+└── specs/
+    └── series-banpick.spec.ts  # 밴픽 플로우 테스트
+```
+
+**테스트 계정:**
+- `lichess` / `password`
+- `mary` / `password`
+- `peter` / `password`
+
+**주요 테스트 시나리오:**
+- Pick Phase: 5개 선택 후 Confirm
+- Ban Phase: 2개 밴 후 Confirm
+- 타임아웃 시 자동 확정
+- 상대 확정 시 "Ready!" 표시
+- Cancel 후 재선택
+
 ## 구현 계획
 
 ### Phase 1: 환경 설정 ✅
