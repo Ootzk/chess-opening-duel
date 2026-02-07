@@ -6,11 +6,40 @@ export interface TestUser {
   storageState: string;
 }
 
-// 기본 테스트 계정 (lila-docker Full mode에서 생성됨)
+// 테스트 계정 (lila-docker Full mode에서 생성됨)
 // storageState는 global-setup에서 생성됨
 export const users = {
+  // Pair 1: Happy path (pick confirm → ban confirm → game)
   elena: { username: 'elena', password: 'password', storageState: '.auth/elena.json' },
   hans: { username: 'hans', password: 'password', storageState: '.auth/hans.json' },
+  // Pair 2: Pick OK → Ban timeout
+  boris: { username: 'boris', password: 'password', storageState: '.auth/boris.json' },
+  david: { username: 'david', password: 'password', storageState: '.auth/david.json' },
+  // Pair 3: Pick OK → Disconnect during ban
+  yulia: { username: 'yulia', password: 'password', storageState: '.auth/yulia.json' },
+  luis: { username: 'luis', password: 'password', storageState: '.auth/luis.json' },
+  // Pair 4: Pick timeout
+  mei: { username: 'mei', password: 'password', storageState: '.auth/mei.json' },
+  ivan: { username: 'ivan', password: 'password', storageState: '.auth/ivan.json' },
+  // Pair 5: Smoke tests (quick sanity checks)
+  ana: { username: 'ana', password: 'password', storageState: '.auth/ana.json' },
+  lola: { username: 'lola', password: 'password', storageState: '.auth/lola.json' },
+} as const;
+
+// Typed user pairs for different test scenarios
+export type UserKey = keyof typeof users;
+
+export const testPairs = {
+  // Happy path: both players confirm on time
+  happyPath: { player1: users.elena, player2: users.hans },
+  // Ban timeout: player2 doesn't confirm bans
+  banTimeout: { player1: users.boris, player2: users.david },
+  // Disconnect: player2 disconnects during ban phase
+  disconnect: { player1: users.yulia, player2: users.luis },
+  // Pick timeout: neither player confirms picks
+  pickTimeout: { player1: users.mei, player2: users.ivan },
+  // Smoke tests: quick sanity checks
+  smoke: { player1: users.ana, player2: users.lola },
 } as const;
 
 /**

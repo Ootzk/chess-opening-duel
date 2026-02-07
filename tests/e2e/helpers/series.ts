@@ -232,17 +232,32 @@ export const lobbySelectors = {
  * Abort any existing games in progress for a player
  */
 export async function abortExistingGames(page: Page): Promise<void> {
-  for (let i = 0; i < 3; i++) {
-    const hangOnDialog = page.locator('text=Hang on!');
-    if (await hangOnDialog.isVisible({ timeout: 2000 }).catch(() => false)) {
-      const abortBtn = page.locator('button:has-text("Abort the game"), button:has-text("ABORT THE GAME")');
-      if (await abortBtn.first().isVisible({ timeout: 2000 }).catch(() => false)) {
-        await abortBtn.first().click();
+  // Wait a moment for any dialogs to appear
+  await page.waitForTimeout(1000);
+
+  for (let i = 0; i < 5; i++) {
+    // Try to find and click the abort button directly using getByRole
+    // The button contains text "ABORT THE GAME" or "Abort the game"
+    try {
+      const abortBtn = page.getByRole('button', { name: /abort/i });
+      const isVisible = await abortBtn.isVisible({ timeout: 1000 }).catch(() => false);
+
+      if (isVisible) {
+        await abortBtn.click();
         await page.waitForLoadState('networkidle');
         await page.waitForTimeout(1000);
+      } else {
+        // No abort button visible - check if dialog is present
+        const hangOnVisible = await page.locator('text="Hang on!"').isVisible({ timeout: 500 }).catch(() => false);
+        if (!hangOnVisible) {
+          break; // No dialog, we're done
+        }
+        // Dialog present but button not found, wait and retry
+        await page.waitForTimeout(500);
       }
-    } else {
-      break;
+    } catch {
+      // Click failed, try again
+      await page.waitForTimeout(500);
     }
   }
 }
@@ -288,7 +303,9 @@ export async function createSeriesChallenge(
   await abortExistingGames(player1);
 
   // Step 2: Click "Opening Duel" button in lobby
-  await player1.locator('.lobby__start button:has-text("Opening Duel")').first().click();
+  const openingDuelBtn = player1.locator('.lobby__start button:has-text("Opening Duel")').first();
+  await expect(openingDuelBtn).toBeVisible({ timeout: 5000 });
+  await openingDuelBtn.click();
 
   // Step 3: Game setup popup - wait for it to appear
   const gameSetup = player1.locator('.game-setup');
@@ -297,59 +314,105 @@ export async function createSeriesChallenge(
   // Select "Real time" mode (click the tab)
   const realTimeTab = player1.locator('.game-setup .tabs-horiz span:has-text("Real time")');
   await realTimeTab.first().click();
-  await player1.waitForTimeout(500);
+
+  // Wait for tab content to update
+  await player1.waitForLoadState('domcontentloaded');
 
   // Click the "Opening Duel" submit button in the modal
   const submitBtn = player1.locator('.game-setup button:has-text("Opening Duel"), .game-setup .submit:has-text("Opening Duel")');
   await expect(submitBtn.first()).toBeVisible({ timeout: 3000 });
   await submitBtn.first().click();
 
-  // Step 4: Wait for challenge page to load (URL can be /challenge/xxx or just /xxxxxxxx)
-  await player1.waitForTimeout(1000);
+  // Step 4: Wait for navigation after form submission
+  // The modal should close and either:
+  // - Redirect to challenge page
+  // - Show friend list to challenge
+  // - Redirect directly to series pick page
+
+  // Wait for modal to close (indicates form was processed)
+  await expect(gameSetup).not.toBeVisible({ timeout: 10000 });
+
+  // Wait for page to stabilize
   await player1.waitForLoadState('networkidle');
 
-  // Click opponent directly if visible in the "Or invite a Lichess user" section
-  const opponentBtn = player1.locator(`button:has-text("${player2Username}")`);
-  if (await opponentBtn.first().isVisible({ timeout: 3000 }).catch(() => false)) {
-    await opponentBtn.first().click();
-    await player1.waitForTimeout(1000);
+  // Search for opponent and invite them
+  // Look for the search textbox in "Or invite a Lichess user" section
+  const searchBox = player1.locator('input[placeholder="Search"], input[type="text"]').last();
+  const searchVisible = await searchBox.isVisible({ timeout: 3000 }).catch(() => false);
+
+  if (searchVisible) {
+    // Type opponent's username
+    await searchBox.fill(player2Username);
+    await player1.waitForTimeout(500);
+
+    // Click on the opponent in the dropdown
+    // The dropdown items have class "complete-result" and are <span> elements
+    // See: repos/lila/ui/lib/src/view/userComplete.ts (renderUserEntry)
+    // See: repos/lila/ui/bits/src/bits.challengePage.ts (tag: 'span')
+    const dropdownItem = player1.locator('.complete-result').filter({ hasText: new RegExp(player2Username, 'i') });
+    await expect(dropdownItem.first()).toBeVisible({ timeout: 3000 });
+    await dropdownItem.first().click();
+
+    // Wait for challenge to be sent and page to update
+    await player1.waitForLoadState('networkidle');
+    await player1.waitForTimeout(500);
   }
 
-  // Wait for challenge to be created
-
-  // Get challenge URL for player2 if on challenge page
-  let challengeUrl = player1.url();
+  // Step 5: Determine current state and extract series ID
   let seriesId: string | undefined;
 
-  // Check if on challenge page (either /challenge/{id} or just /{8-char-id})
-  const onChallengePage = challengeUrl.includes('/challenge/') ||
-    (await player1.locator('h1:has-text("Challenge"), .challenge').first().isVisible({ timeout: 2000 }).catch(() => false));
+  // Wait for redirect to series or challenge page
+  // Use Promise.race to detect whichever happens first
+  const seriesRedirect = player1.waitForURL(/\/series\//, { timeout: 10000 }).catch(() => null);
+  const challengeRedirect = player1.waitForURL(/\/challenge\//, { timeout: 10000 }).catch(() => null);
 
-  if (onChallengePage) {
-    // Player2 needs to accept the challenge
-    await player2.goto(challengeUrl);
+  await Promise.race([seriesRedirect, challengeRedirect]);
+
+  // Check current state
+  const currentUrl = player1.url();
+
+  if (currentUrl.includes('/series/')) {
+    // Already on series page
+    const match = currentUrl.match(/\/series\/(\w+)/);
+    seriesId = match?.[1];
+  } else if (currentUrl.includes('/challenge/')) {
+    // On challenge page - player2 needs to accept
+    await player2.goto(currentUrl);
     await player2.waitForLoadState('networkidle');
-    await player2.waitForTimeout(500);
 
-    // Accept the challenge
     const acceptBtn = player2.locator(lobbySelectors.challengeAcceptBtn);
     await expect(acceptBtn.first()).toBeVisible({ timeout: 5000 });
     await acceptBtn.first().click();
 
     // Wait for redirect to series pick page
     await player2.waitForURL(/\/series\/.*\/pick/, { timeout: 15000 });
-
-    // Extract series ID from player2's URL
     const match = player2.url().match(/\/series\/(\w+)/);
     seriesId = match?.[1];
-  } else if (challengeUrl.includes('/series/')) {
-    // Already redirected to series
-    const match = challengeUrl.match(/\/series\/(\w+)/);
-    seriesId = match?.[1];
+  } else {
+    // May still be on lobby - check for challenge element or wait for redirect
+    const challengeVisible = await player1.locator('.challenge, h1:has-text("Challenge")').first().isVisible({ timeout: 2000 }).catch(() => false);
+
+    if (challengeVisible) {
+      await player2.goto(currentUrl);
+      await player2.waitForLoadState('networkidle');
+
+      const acceptBtn = player2.locator(lobbySelectors.challengeAcceptBtn);
+      await expect(acceptBtn.first()).toBeVisible({ timeout: 5000 });
+      await acceptBtn.first().click();
+
+      await player2.waitForURL(/\/series\/.*\/pick/, { timeout: 15000 });
+      const match = player2.url().match(/\/series\/(\w+)/);
+      seriesId = match?.[1];
+    } else {
+      // Last resort: check if player1 eventually got redirected
+      await player1.waitForURL(/\/series\/.*\/pick/, { timeout: 10000 }).catch(() => {});
+      const match = player1.url().match(/\/series\/(\w+)/);
+      seriesId = match?.[1];
+    }
   }
 
   if (!seriesId) {
-    throw new Error(`Failed to get series ID. Current URL: ${player1.url()}`);
+    throw new Error(`Failed to get series ID. Player1 URL: ${player1.url()}, Player2 URL: ${player2.url()}`);
   }
 
   // Navigate both players to pick page

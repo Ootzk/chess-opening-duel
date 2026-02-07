@@ -223,37 +223,59 @@ docker compose exec lila ./lila.sh playRoutes
 ```bash
 cd tests/e2e
 npm install              # 최초 1회
-npm test                 # 전체 테스트 (headless)
+npm test                 # 전체 테스트 (headless, HTML 리포트 생성)
 npm run test:headed      # 브라우저 표시
 npm run test:debug       # 디버그 모드
 npm run test:ui          # Playwright UI 모드
-npm run report           # 테스트 리포트 보기
+npm run report           # HTML 테스트 리포트 보기
 ```
 
 **테스트 구조:**
 ```
 tests/e2e/
 ├── package.json           # npm 스크립트
-├── playwright.config.ts   # Playwright 설정
-├── tsconfig.json          # TypeScript 설정
+├── playwright.config.ts   # Playwright 설정 (reporter: 'html')
+├── global-setup.ts        # 10개 테스트 계정 로그인 + 세션 저장
+├── global-teardown.ts     # DB 리셋 (MongoDB + Redis)
 ├── helpers/
-│   ├── auth.ts            # 로그인 헬퍼 (users.lichess, users.mary 등)
-│   └── series.ts          # 시리즈 조작 헬퍼 (selectPicks, selectBans 등)
+│   ├── auth.ts            # 로그인 헬퍼, testPairs 정의
+│   └── series.ts          # 시리즈 조작 헬퍼 (selectOpenings, confirm 등)
 └── specs/
     └── series-banpick.spec.ts  # 밴픽 플로우 테스트
 ```
 
-**테스트 계정:**
-- `lichess` / `password`
-- `mary` / `password`
-- `peter` / `password`
+**테스트 계정 (5쌍):**
 
-**주요 테스트 시나리오:**
-- Pick Phase: 5개 선택 후 Confirm
-- Ban Phase: 2개 밴 후 Confirm
-- 타임아웃 시 자동 확정
-- 상대 확정 시 "Ready!" 표시
-- Cancel 후 재선택
+| Pair | Player 1 | Player 2 | 시나리오 |
+|------|----------|----------|----------|
+| 1 | elena | hans | Happy path (Pick → Ban → Game) |
+| 2 | boris | david | Ban timeout |
+| 3 | yulia | luis | Disconnect |
+| 4 | mei | ivan | Pick timeout |
+| 5 | ana | lola | Smoke tests |
+
+비밀번호: 전부 `password`
+
+**플로우 기반 테스트:**
+각 테스트는 **하나의 시리즈 플로우**를 처음부터 끝까지 따라감:
+```typescript
+test('Complete flow: Series → Pick → Ban → Game', async ({ browser }) => {
+  await test.step('Create series and reach Pick Phase', async () => {...});
+  await test.step('Pick Phase: Select 5 openings each', async () => {...});
+  await test.step('Ban Phase: Both confirm', async () => {...});
+  await test.step('Game starts successfully', async () => {...});
+});
+```
+
+**주의사항:**
+- 독립적인 테스트가 아님 → 같은 계정 쌍이 시리즈 플로우를 순차 진행
+- `beforeAll`로 해당 쌍의 데이터만 정리 (전체 DB 리셋 X)
+- `globalTeardown`에서 전체 DB 리셋 (`./lila-docker db`)
+
+**Claude 가이드라인:**
+- 테스트 실행 시 항상 HTML 리포트 사용 (`npm test` 후 `npm run report`)
+- 테스트 실패 시 리포트 확인을 유저에게 안내
+- 새 시나리오 추가 시 기존 플로우 패턴 따르기 (`test.step` 사용)
 
 ## 구현 계획
 

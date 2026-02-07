@@ -1,8 +1,23 @@
 import { chromium, FullConfig } from '@playwright/test';
 
+// 5 test account pairs for parallel test execution
+// Each pair tests different scenarios independently
 const users = [
+  // Pair 1: elena + hans (happy path: pick confirm → ban confirm → game)
   { username: 'elena', password: 'password', file: '.auth/elena.json' },
   { username: 'hans', password: 'password', file: '.auth/hans.json' },
+  // Pair 2: boris + david (pick OK → ban timeout)
+  { username: 'boris', password: 'password', file: '.auth/boris.json' },
+  { username: 'david', password: 'password', file: '.auth/david.json' },
+  // Pair 3: yulia + luis (pick OK → disconnect during ban)
+  { username: 'yulia', password: 'password', file: '.auth/yulia.json' },
+  { username: 'luis', password: 'password', file: '.auth/luis.json' },
+  // Pair 4: mei + ivan (pick timeout)
+  { username: 'mei', password: 'password', file: '.auth/mei.json' },
+  { username: 'ivan', password: 'password', file: '.auth/ivan.json' },
+  // Pair 5: ana + lola (smoke tests)
+  { username: 'ana', password: 'password', file: '.auth/ana.json' },
+  { username: 'lola', password: 'password', file: '.auth/lola.json' },
 ];
 
 async function loginWithRetry(

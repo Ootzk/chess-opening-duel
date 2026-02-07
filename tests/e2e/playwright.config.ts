@@ -2,10 +2,10 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './specs',
-  fullyParallel: false, // 두 플레이어 동시 제어 필요
+  fullyParallel: true, // 각 테스트가 독립적인 계정 쌍 사용 → 병렬 실행 가능
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
-  workers: 1, // 순차 실행
+  retries: process.env.CI ? 2 : 1, // Retry once locally for flaky tests
+  workers: 5, // 5 test pairs = 5 parallel workers
   reporter: 'html',
 
   // Global setup: 테스트 전 한 번만 로그인
