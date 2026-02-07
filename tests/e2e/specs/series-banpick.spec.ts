@@ -14,12 +14,16 @@ import {
 /**
  * Series Ban/Pick E2E Tests
  *
- * Flow-based tests from series creation to game start:
- * 1. Complete Flow: Both players confirm picks and bans normally
- * 2. Ban Timeout: Player confirms picks but not bans → server auto-fills
- * 3. Pick Timeout: Neither player confirms picks → server auto-fills all
- * 4. Disconnect: Player disconnects → series aborted (skipped - unreliable in headless)
- * 5. Smoke Tests: Basic login and homepage verification
+ * Tags describe phase outcomes:
+ *   @🟢pick:{state} - Pick phase (green)
+ *   @🔴ban:{state}  - Ban phase (red)
+ *
+ * States:
+ *   both-confirmed          - Both players confirmed
+ *   one-confirmed-one-timeout - One confirmed, other timed out
+ *   both-partial-timeout    - Both partially selected, then timed out
+ *   both-timeout            - Neither confirmed, server auto-filled
+ *   one-confirmed-one-disconnected - One confirmed, other disconnected
  */
 
 // Cleanup helper for specific user pair
@@ -50,7 +54,7 @@ test.describe('Complete Flow', () => {
 
   test.beforeAll(() => cleanupPairData(pairUsers));
 
-  test('Both players confirm picks and bans → game starts', async ({ browser }) => {
+  test('Game starts @🟢pick:both-confirmed @🔴ban:both-confirmed', async ({ browser }) => {
     const { player1Context, player2Context, player1, player2 } = await createTwoPlayerContexts(
       browser,
       pair.player1,
@@ -232,7 +236,7 @@ test.describe('Ban Timeout', () => {
 
   test.beforeAll(() => cleanupPairData(pairUsers));
 
-  test('Player 1 confirms bans, Player 2 times out → server auto-fills', async ({ browser }) => {
+  test('Server auto-fills @🟢pick:both-confirmed @🔴ban:one-confirmed-one-timeout', async ({ browser }) => {
     const { player1Context, player2Context, player1, player2 } = await createTwoPlayerContexts(
       browser,
       pair.player1,
@@ -330,7 +334,7 @@ test.describe('Disconnect Abort', () => {
   test.beforeAll(() => cleanupPairData(pairUsers));
 
   // TODO: WebSocket disconnect detection doesn't work reliably in headless mode
-  test.skip('Player disconnects during pick phase → series aborted', async ({ browser }) => {
+  test.skip('Series aborted @🟢pick:one-confirmed-one-disconnected', async ({ browser }) => {
     const { player1Context, player2Context, player1, player2 } = await createTwoPlayerContexts(
       browser,
       pair.player1,
@@ -370,7 +374,7 @@ test.describe('Pick Timeout', () => {
 
   test.beforeAll(() => cleanupPairData(pairUsers));
 
-  test('Neither player confirms → server auto-fills picks and bans', async ({ browser }) => {
+  test('Server auto-fills all @🟢pick:both-partial-timeout @🔴ban:both-timeout', async ({ browser }) => {
     const { player1Context, player2Context, player1, player2 } = await createTwoPlayerContexts(
       browser,
       pair.player1,
