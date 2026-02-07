@@ -16,10 +16,96 @@ lichess 오픈소스 기반의 커스텀 체스 게임. 특정 오프닝으로�
 - 5경기 내 승자 미결정 시 (예: 2.5-2.5 동점) **서든데스** 진행
 
 ### 밴픽 플로우
-1. **Pick Phase** (30초): 10개 오프닝 중 최대 5개 선택
-2. **Ban Phase** (30초): 상대 픽 중 최대 2개 밴
-3. **Game 1**: 밴된 4개 오프닝 중 랜덤
-4. **Game 2~**: 전 경기 패자가 자신의 남은 픽 중 선택 (무승부 시 남은 밴 오프닝 중 랜덤)
+1. **Pick Phase** (30초): 10개 오프닝 중 정확히 5개 선택 (미달 시 Confirm 비활성)
+   - 타임아웃: 현재 선택 + 랜덤으로 5개 채워서 자동 확정
+2. **Ban Phase** (30초): 상대 픽 중 정확히 2개 밴 (미달 시 Confirm 비활성)
+   - 타임아웃: 현재 선택 + 랜덤으로 2개 채워서 자동 확정
+3. **Game 1**: 밴된 4개 + 중립(Standard Game) = 5개 중 랜덤
+4. **Game 2~**: 전 경기 패자가 자신의 남은 픽 중 선택 (무승부 시 남은 밴/중립 오프닝 중 랜덤)
+
+#### Phase 상태
+
+- `Picking` (10): 양측 오프닝 선택
+- `Banning` (20): 양측 밴 선택
+- `RandomSelecting` (25): Game 1 오프닝 랜덤 선택 중 (카운트다운)
+- `Playing` (30): 게임 진행 중
+- `Selecting` (35): 패자가 다음 오프닝 선택 중
+- `Finished` (40): 시리즈 종료
+
+#### 플로우 다이어그램
+
+**Phase 전환 (메인 플로우):**
+```mermaid
+flowchart LR
+    subgraph Pre["Pre-game"]
+        PICK[Picking<br/>30s] -->|confirm| BAN[Banning<br/>30s]
+    end
+
+    subgraph Game["Game Loop"]
+        RS[RandomSelecting<br/>5s] --> PLAY[Playing]
+        PLAY -->|draw| RS
+        PLAY -->|winner| SEL[Selecting<br/>30s]
+        SEL --> PLAY
+    end
+
+    BAN -->|startGame1| RS
+    PLAY -->|series done| FIN[Finished]
+
+    PICK -.->|timeout+disconnect| ABORT[Aborted]
+    BAN -.->|timeout+disconnect| ABORT
+```
+
+**타임아웃 처리 (서버 스케줄러):**
+```mermaid
+flowchart TD
+    TIMEOUT[Timeout fires] --> CHECK{timeLeft > 1?}
+    CHECK -->|Yes| RESCHED[Reschedule remaining]
+    CHECK -->|No| DISC{Disconnected?}
+    DISC -->|Yes| ABORT[Abort series]
+    DISC -->|No| AUTO[Auto-fill + confirm]
+    AUTO --> NEXT[Next phase]
+```
+
+**주요 이벤트:**
+
+| 이벤트 | 발생 시점 | Env.scala 핸들러 |
+|--------|----------|------------------|
+| `SeriesCreated` | Series 생성 | `timeouts.schedule()` |
+| `SeriesPhaseChanged` | Phase 전환 | Banning: `schedule()`, 나머지: `cancel()` |
+| `SeriesAborted` | Timeout + Disconnected | - |
+| `SeriesEnterSelecting` | Game 2+ 승자 결정 | 클라이언트 리다이렉트 |
+| `SeriesDrawRandomSelecting` | Game 2+ 무승부 | 클라이언트 리다이렉트 |
+| `SeriesFinished` | 시리즈 종료 | - |
+
+#### API 엔드포인트
+| Method | Path | 설명 |
+|--------|------|------|
+| GET | `/series/{id}` | 시리즈 상태 조회 (JSON) |
+| GET | `/series/{id}/pick` | 밴픽 페이지 (HTML) |
+| POST | `/series/{id}/setPicks` | 픽 설정 |
+| POST | `/series/{id}/confirmPicks` | 픽 확정 |
+| POST | `/series/{id}/timeoutPicks` | 픽 타임아웃 (랜덤 채우기) |
+| POST | `/series/{id}/setBans` | 밴 설정 |
+| POST | `/series/{id}/confirmBans` | 밴 확정 |
+| POST | `/series/{id}/timeoutBans` | 밴 타임아웃 (랜덤 채우기) |
+| POST | `/series/{id}/selectNextOpening` | 다음 오프닝 선택 (패자용) |
+
+#### 핵심 파일
+```
+repos/lila/modules/series/src/main/
+├── Series.scala          # 시리즈 모델 (Phase, maxPicks, maxBans 등)
+├── SeriesPlayer.scala    # 플레이어 모델 (confirmedPicks, confirmedBans)
+├── SeriesOpening.scala   # 오프닝 모델 (source, ownerIndex, usedInRound)
+├── SeriesGame.scala      # 게임 결과 모델
+├── SeriesApi.scala       # 비즈니스 로직 (타임아웃 처리 포함)
+├── SeriesJson.scala      # JSON 직렬화
+└── OpeningPresets.scala  # 10개 오프닝 프리셋 정의
+
+repos/lila/ui/series/
+├── src/ctrl.ts           # 프론트엔드 컨트롤러
+├── src/view.ts           # Snabbdom 뷰
+└── css/_pick.scss        # 스타일
+```
 
 ## 저장소 구조
 
@@ -440,6 +526,10 @@ git submodule update repos/lila                # submodule 동기화
 ### 커밋 분리 정책
 - **정책 구현 (기능)** 과 **버그픽스**는 별도 커밋으로 분리
 - lila에서 먼저 커밋/푸시 → 메인 repo에서 submodule 변경사항 커밋
+
+### 커밋 전 테스트
+- **매 커밋 직전** 반드시 유저에게 테스트 검수 요청
+- 테스트 통과 확인 후 커밋 진행
 
 ### 코드 변경 후 재시작
 - Scala 변경: `./lila-docker lila restart`
