@@ -423,6 +423,15 @@ repos/lila/modules/openingduel/                                 # 밴픽 로직
 
 Full 모드 설정시 자동 생성됨. 기본 비밀번호: `password`
 
+### TODO: 특수 계정 roles과 Opening Duel 호환성
+
+DB 리셋 시 일부 계정에 랜덤으로 특수 roles (admin, teacher, coach 등)이 부여됨.
+특수 roles이 있는 계정은 Opening Duel 시리즈 생성/밴픽 플로우가 정상 동작하지 않을 수 있음.
+E2E 테스트에서 `kenneth`, `mateo` 등 특수 계정 사용 시 밴픽 Phase 전환 실패 확인됨.
+
+- [ ] 원인 조사: 어떤 role이 시리즈 플로우를 차단하는지 파악
+- [ ] 수정: 특수 계정도 Opening Duel을 정상 이용할 수 있도록 처리
+
 ## 버전 관리 정책
 
 **Release Branch Workflow** 사용:

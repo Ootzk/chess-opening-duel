@@ -527,6 +527,10 @@ export const gameSelectors = {
   drawConfirm: '.act-confirm button.fbt.yes.draw-yes',
   drawAcceptBtn: 'button.draw-yes',
 
+  // Series forfeit controls
+  seriesForfeitBtn: 'button.fbt.series-forfeit',
+  seriesForfeitConfirm: '.act-confirm button.fbt.yes',
+
   // Game end
   gameOverlay: '.result-wrap',
   rematchBtn: 'button.fbt.rematch',
@@ -1481,4 +1485,86 @@ export async function executeSeriesResult(
       screenshot('series-finished-p2', player2),
     ]);
   }
+}
+
+// ===== Series Forfeit Helpers =====
+
+/**
+ * Forfeit a series via the API endpoint
+ * Uses the page's session cookies for authentication
+ */
+export async function forfeitSeriesViaApi(
+  page: Page,
+  seriesId: string
+): Promise<boolean> {
+  const response = await page.request.post(`http://localhost:8080/series/${seriesId}/forfeit`, {
+    headers: { Accept: 'application/json' },
+  });
+
+  const body = await response.text();
+  console.log(`[forfeitSeriesViaApi] status=${response.status()}, body=${body}`);
+
+  return response.ok();
+}
+
+/**
+ * Click the series forfeit button on the game page
+ * This triggers the confirm dialog (or immediate forfeit if confirmResign is off)
+ */
+export async function clickSeriesForfeitButton(page: Page): Promise<void> {
+  const forfeitBtn = page.locator(gameSelectors.seriesForfeitBtn);
+  await expect(forfeitBtn).toBeVisible({ timeout: 5000 });
+  await forfeitBtn.click();
+}
+
+/**
+ * Confirm the series forfeit (click the confirm button in the act-confirm dialog)
+ * Must be called after clickSeriesForfeitButton
+ */
+export async function confirmSeriesForfeit(page: Page): Promise<void> {
+  const confirmBtn = page.locator(gameSelectors.seriesForfeitConfirm);
+  await expect(confirmBtn).toBeVisible({ timeout: 5000 });
+  await confirmBtn.click();
+}
+
+/**
+ * Get series winner index from API
+ * Returns 0, 1, or null if no winner
+ */
+export async function getSeriesWinner(
+  page: Page,
+  seriesId: string
+): Promise<number | null> {
+  const response = await page.request.get(`http://localhost:8080/series/${seriesId}`, {
+    headers: { Accept: 'application/json' },
+  });
+
+  if (!response.ok()) return null;
+
+  const data = await response.json();
+  return data.winner ?? null;
+}
+
+/**
+ * Get a player's index in the series (0 or 1) by username.
+ * Player ordering depends on random color assignment, NOT on who created the challenge.
+ * Returns 0, 1, or null if not found.
+ */
+export async function getPlayerIndex(
+  page: Page,
+  seriesId: string,
+  username: string
+): Promise<number | null> {
+  const response = await page.request.get(`http://localhost:8080/series/${seriesId}`, {
+    headers: { Accept: 'application/json' },
+  });
+
+  if (!response.ok()) return null;
+
+  const data = await response.json();
+  const players = data.players as Array<{ user?: { id: string } }>;
+  for (let i = 0; i < players.length; i++) {
+    if (players[i].user?.id === username) return i;
+  }
+  return null;
 }
