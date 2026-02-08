@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { execSync } from 'child_process';
-import { testScenarios, createTwoPlayerContexts, loginBothPlayers } from '../helpers/auth';
+import { createTwoPlayerContexts, loginBothPlayers } from '../helpers/auth';
+import { testScenarios } from '../helpers/scenarios';
 import {
   createSeriesChallenge,
   completeBanPickPhase,

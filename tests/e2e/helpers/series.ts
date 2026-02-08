@@ -1,6 +1,6 @@
 import { Page, expect } from '@playwright/test';
 import { Chess } from 'chess.js';
-import type { PickBanBehavior } from './auth';
+import type { PickBanBehavior } from './scenarios';
 
 // Selectors matching view.ts structure
 export const selectors = {

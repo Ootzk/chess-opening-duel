@@ -23,7 +23,8 @@ tests/e2e/
 ├── global-setup.ts        # 18개 테스트 계정 로그인 + 세션 저장
 ├── global-teardown.ts     # DB 리셋 (MongoDB + Redis)
 ├── helpers/
-│   ├── auth.ts            # 로그인 헬퍼, testPairs 정의
+│   ├── auth.ts            # 계정 정보, 로그인 헬퍼, 브라우저 컨텍스트
+│   ├── scenarios.ts       # 테스트 시나리오 매트릭스 (PickBanBehavior, testScenarios)
 │   └── series.ts          # 시리즈 조작 헬퍼 (selectOpenings, confirm 등)
 └── specs/
     ├── series-banpick.spec.ts     # 밴픽 플로우 테스트 (Test 0~6)
