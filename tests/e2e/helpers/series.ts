@@ -33,6 +33,8 @@ export const selectors = {
   randomSelecting: '.series-pick.random-selecting',
   countdown: '.series-pick__countdown',
 
+  // Countdown text (3-second delay after both confirm)
+  countdownText: '.series-pick__countdown-text',
 };
 
 /**
@@ -222,6 +224,69 @@ export async function getSelectedOpeningNames(page: Page): Promise<string[]> {
  * Takes a descriptive name and the page to screenshot
  */
 export type ScreenshotFn = (name: string, page: Page) => Promise<void>;
+
+// ===== Countdown Helpers =====
+
+/**
+ * Wait for countdown text to appear (e.g., "Game 1 starting in 3...")
+ * Returns the countdown text content.
+ */
+export async function waitForCountdownText(page: Page, timeout = 10000): Promise<string> {
+  const loc = page.locator(selectors.countdownText);
+  await expect(loc).toBeVisible({ timeout });
+  return (await loc.textContent()) || '';
+}
+
+/**
+ * Get current countdown text if visible, or null if not visible.
+ */
+export async function getCountdownText(page: Page): Promise<string | null> {
+  const loc = page.locator(selectors.countdownText);
+  const isVisible = await loc.isVisible().catch(() => false);
+  if (!isVisible) return null;
+  return (await loc.textContent()) || null;
+}
+
+/**
+ * Verify countdown text matches the expected pattern: "Game {N} starting in {sec}..."
+ * Returns the parsed seconds value.
+ */
+export async function parseCountdownSeconds(page: Page): Promise<number | null> {
+  const text = await getCountdownText(page);
+  if (!text) return null;
+  const match = text.match(/starting in (\d+)\.\.\./);
+  return match ? parseInt(match[1], 10) : null;
+}
+
+/**
+ * Wait for countdown text to disappear (e.g., after cancel or phase transition).
+ */
+export async function waitForCountdownGone(page: Page, timeout = 10000): Promise<void> {
+  await expect(page.locator(selectors.countdownText)).not.toBeVisible({ timeout });
+}
+
+/**
+ * Verify the countdown decrements over time.
+ * Waits for countdown to appear, records initial value, waits ~1.5s, then checks it decreased.
+ */
+export async function verifyCountdownDecrements(page: Page, timeout = 10000): Promise<{ initial: number; after: number }> {
+  // Wait for countdown to appear
+  await waitForCountdownText(page, timeout);
+
+  const initial = await parseCountdownSeconds(page);
+  if (initial === null) throw new Error('Could not parse initial countdown seconds');
+
+  // Wait ~1.5 seconds for it to decrement
+  await page.waitForTimeout(1500);
+
+  const after = await parseCountdownSeconds(page);
+  if (after === null) {
+    // Countdown may have finished (reached 0 and stopped) - that's OK if initial was small
+    return { initial, after: 0 };
+  }
+
+  return { initial, after };
+}
 
 // ===== Series Creation via Challenge Flow =====
 

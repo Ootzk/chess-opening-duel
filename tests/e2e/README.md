@@ -20,7 +20,7 @@ npm run report           # HTML 테스트 리포트 보기
 tests/e2e/
 ├── package.json           # npm 스크립트
 ├── playwright.config.ts   # Playwright 설정 (workers: 3, rate limiting OFF)
-├── global-setup.ts        # 24개 테스트 계정 로그인 + 세션 저장
+├── global-setup.ts        # 28개 테스트 계정 로그인 + 세션 저장
 ├── global-teardown.ts     # DB 리셋 (MongoDB + Redis)
 ├── helpers/
 │   ├── auth.ts            # 계정 정보, 로그인 헬퍼, 브라우저 컨텍스트
@@ -28,6 +28,7 @@ tests/e2e/
 │   └── series.ts          # 시리즈 조작 헬퍼 (selectOpenings, confirm 등)
 └── specs/
     ├── series-banpick.spec.ts     # 밴픽 플로우 테스트 (Test 0~6)
+    ├── series-countdown.spec.ts   # Countdown 테스트 (Test 12~13)
     ├── series-disconnect.spec.ts  # Disconnect/Abort 테스트 (Test 7~8)
     ├── series-forfeit.spec.ts     # Series Forfeit 테스트 (Test 9~10)
     └── series-finished.spec.ts    # Finished Page + Rematch 테스트 (Test 11)
@@ -88,6 +89,8 @@ const users = [
 | 9 | fatima | diego | ✅/✅ | ✅/✅ | forfeit(moves) | 1 | forfeit | P1 forfeit after moves |
 | 10 | salma | benjamin | ✅/✅ | ✅/✅ | forfeit(no moves) | 1 | forfeit | P1 forfeit before moves |
 | 11 | patricia | adriana | ✅/✅ | ✅/✅ | 1 - 1 - 1 | 3 | 3-0 | Finished page + rematch |
+| 12 | mary | jose | ✅/✅ | ✅/✅ | - | 1 | - | Countdown 표시 + 감소 |
+| 13 | iryna | pedro | ✅/✅ | ✅/✅ | - | 1 | - | Countdown cancel + 재시작 |
 
 ## Pick/Ban 행동 타입
 
@@ -214,6 +217,8 @@ test.describe('Test 0: elena vs hans', () => {
 | 10 | fatima | diego | Forfeit Test 9 | series-forfeit |
 | 11 | salma | benjamin | Forfeit Test 10 | series-forfeit |
 | 12 | patricia | adriana | Finished + Rematch Test 11 | series-finished |
+| 13 | mary | jose | Countdown Test 12 | series-countdown |
+| 14 | iryna | pedro | Countdown Test 13 | series-countdown |
 
 > **중요**: 각 쌍은 하나의 테스트에서만 사용 (병렬 충돌 방지)
 
@@ -260,6 +265,16 @@ test.describe('Test 0: elena vs hans', () => {
 | `confirmSeriesForfeit(page)` | forfeit 확인 다이얼로그의 확인 버튼 클릭 |
 | `forfeitSeriesViaApi(page, seriesId)` | `POST /series/{id}/forfeit` API 직접 호출 |
 
+### Countdown 관련
+
+| 함수 | 설명 |
+|:---|:---|
+| `waitForCountdownText(page, timeout?)` | 카운트다운 텍스트 표시 대기. 텍스트 반환 |
+| `getCountdownText(page)` | 현재 카운트다운 텍스트 (없으면 null) |
+| `parseCountdownSeconds(page)` | 카운트다운 텍스트에서 초 파싱 ("...starting in N...") |
+| `waitForCountdownGone(page, timeout?)` | 카운트다운 텍스트 사라짐 대기 |
+| `verifyCountdownDecrements(page, timeout?)` | 카운트다운 감소 검증. `{ initial, after }` 반환 |
+
 ### Finished Page 관련
 
 | 함수 | 설명 |
@@ -286,6 +301,7 @@ test.describe('Test 0: elena vs hans', () => {
 .series-pick.random-selecting       # RandomSelecting 페이지
 .series-pick.selecting-waiting      # Selecting에서 승자 대기 화면
 .series-pick__opponent-status       # 상대 상태 (.ready / .waiting / .disconnected)
+.series-pick__countdown-text       # 카운트다운 텍스트 ("Ban phase starting in 3..." / "Game N starting in 3...")
 ```
 
 ### 게임 페이지 (`gameSelectors`)
