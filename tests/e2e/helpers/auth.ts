@@ -30,6 +30,12 @@ export const users = {
   // Pair 7: Victory condition - 2.5-0.5 early win
   oscar: { username: 'oscar', password: 'password', storageState: '.auth/oscar.json' },
   petra: { username: 'petra', password: 'password', storageState: '.auth/petra.json' },
+  // Pair 8: Pick phase disconnect abort
+  angel: { username: 'angel', password: 'password', storageState: '.auth/angel.json' },
+  bobby: { username: 'bobby', password: 'password', storageState: '.auth/bobby.json' },
+  // Pair 9: Ban phase disconnect abort
+  marcel: { username: 'marcel', password: 'password', storageState: '.auth/marcel.json' },
+  vera: { username: 'vera', password: 'password', storageState: '.auth/vera.json' },
 } as const;
 
 // Typed user pairs for different test scenarios

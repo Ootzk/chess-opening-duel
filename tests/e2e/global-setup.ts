@@ -24,6 +24,12 @@ const users = [
   // Pair 7: oscar + petra (early win 2.5-0.5)
   { username: 'oscar', password: 'password', file: '.auth/oscar.json' },
   { username: 'petra', password: 'password', file: '.auth/petra.json' },
+  // Pair 8: angel + bobby (pick phase disconnect abort)
+  { username: 'angel', password: 'password', file: '.auth/angel.json' },
+  { username: 'bobby', password: 'password', file: '.auth/bobby.json' },
+  // Pair 9: marcel + vera (ban phase disconnect abort)
+  { username: 'marcel', password: 'password', file: '.auth/marcel.json' },
+  { username: 'vera', password: 'password', file: '.auth/vera.json' },
 ];
 
 async function loginWithRetry(
