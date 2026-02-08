@@ -38,9 +38,20 @@ export const selectors = {
 };
 
 /**
+ * Wait for Snabbdom to initialize (the server-rendered HTML lacks .series-pick__action-btn)
+ * This prevents clicking on server-rendered elements that have no event handlers.
+ */
+export async function waitForSnabbdomReady(page: Page, timeout = 10000): Promise<void> {
+  await expect(page.locator('.series-pick__action-btn')).toBeVisible({ timeout });
+}
+
+/**
  * Select N openings (clicks on unselected, non-disabled openings)
  */
 export async function selectOpenings(page: Page, count: number): Promise<void> {
+  // Ensure Snabbdom has taken over from server-rendered HTML
+  await waitForSnabbdomReady(page);
+
   for (let i = 0; i < count; i++) {
     const openings = page.locator(`${selectors.opening}:not(.selected):not(.disabled)`);
     const openingCount = await openings.count();
@@ -867,6 +878,9 @@ export async function getSeriesPhase(page: Page): Promise<string> {
  * Select next opening in Selecting phase (loser selects)
  */
 export async function selectNextOpening(page: Page, openingIndex = 0): Promise<void> {
+  // Wait for Snabbdom to initialize after page redirect
+  await waitForSnabbdomReady(page);
+
   // Wait for selecting phase
   const openings = page.locator(`${selectors.opening}:not(.disabled)`);
   await expect(openings.first()).toBeVisible({ timeout: 5000 });
@@ -1238,9 +1252,10 @@ export async function completeBanPickPhase(
   const pickNeedsTimeout = needsTimeout(opts.pick.p1) || needsTimeout(opts.pick.p2);
   if (pickNeedsTimeout) {
     console.log('[completeBanPickPhase] Waiting for pick timeout...');
-    // Wait for Ban Phase (server auto-fills and transitions after timeout)
-    await waitForPhase(player1, 'Ban Phase', 20000);
-    await waitForPhase(player2, 'Ban Phase', 20000);
+    // Wait for Ban Phase (server auto-fills and transitions after 30s timeout)
+    // Extra buffer for server load during parallel test execution
+    await waitForPhase(player1, 'Ban Phase', 50000);
+    await waitForPhase(player2, 'Ban Phase', 50000);
   } else {
     // Both confirmed - wait for phase transition
     await waitForPhase(player1, 'Ban Phase', 10000);
@@ -1248,6 +1263,12 @@ export async function completeBanPickPhase(
   }
 
   // ===== Ban Phase =====
+  // Wait for Snabbdom to re-initialize after page reload/redirect
+  await Promise.all([
+    waitForSnabbdomReady(player1),
+    waitForSnabbdomReady(player2),
+  ]);
+
   // Execute ban behaviors in parallel
   await Promise.all([
     executePickBanBehavior(player1, opts.ban.p1, 'ban'),
@@ -1261,11 +1282,13 @@ export async function completeBanPickPhase(
   }
 
   // Wait for RandomSelecting phase (Game 1 random selection)
-  await waitForRandomSelecting(player1, 20000).catch(() => {});
+  // After ban timeout (30s) + bothConfirmedDelay (3s) → RandomSelecting → game
+  const gameWaitTimeout = banNeedsTimeout ? 50000 : 15000;
+  await waitForRandomSelecting(player1, gameWaitTimeout).catch(() => {});
 
-  // Wait for game to start
-  await waitForGamePage(player1, 15000);
-  await waitForGamePage(player2, 15000);
+  // Wait for game to start (after RandomSelecting 5s countdown)
+  await waitForGamePage(player1, gameWaitTimeout);
+  await waitForGamePage(player2, gameWaitTimeout);
 }
 
 /**
