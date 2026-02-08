@@ -39,6 +39,12 @@ const users = [
   // Pair 12: patricia + adriana (finished page + rematch)
   { username: 'patricia', password: 'password', file: '.auth/patricia.json' },
   { username: 'adriana', password: 'password', file: '.auth/adriana.json' },
+  // Pair 13: mary + jose (countdown verification)
+  { username: 'mary', password: 'password', file: '.auth/mary.json' },
+  { username: 'jose', password: 'password', file: '.auth/jose.json' },
+  // Pair 14: iryna + pedro (countdown cancel behavior)
+  { username: 'iryna', password: 'password', file: '.auth/iryna.json' },
+  { username: 'pedro', password: 'password', file: '.auth/pedro.json' },
 ];
 
 async function loginWithRetry(

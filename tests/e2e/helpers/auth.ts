@@ -45,6 +45,12 @@ export const users = {
   // Pair 12: Finished page + rematch
   patricia: { username: 'patricia', password: 'password', storageState: '.auth/patricia.json' },
   adriana: { username: 'adriana', password: 'password', storageState: '.auth/adriana.json' },
+  // Pair 13: Countdown verification (pick/ban phase)
+  mary: { username: 'mary', password: 'password', storageState: '.auth/mary.json' },
+  jose: { username: 'jose', password: 'password', storageState: '.auth/jose.json' },
+  // Pair 14: Countdown cancel behavior
+  iryna: { username: 'iryna', password: 'password', storageState: '.auth/iryna.json' },
+  pedro: { username: 'pedro', password: 'password', storageState: '.auth/pedro.json' },
 } as const;
 
 /**
