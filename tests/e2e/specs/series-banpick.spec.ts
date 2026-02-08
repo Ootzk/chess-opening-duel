@@ -7,6 +7,8 @@ import {
   completeBanPickPhase,
   executeSeriesResult,
   isSeriesFinished,
+  waitForFinishedPage,
+  verifyFinishedPageUI,
   type ScreenshotFn,
 } from '../helpers/series';
 
@@ -148,6 +150,30 @@ for (const scenario of testScenarios) {
         await test.step('Verify series finished', async () => {
           const finished = await isSeriesFinished(player1, seriesId);
           expect(finished).toBe(true);
+        });
+
+        // ===== STEP 5: Verify Finished Page =====
+        await test.step('Verify finished page', async () => {
+          // Wait for both players to be redirected to finished page
+          await waitForFinishedPage(player1, seriesId);
+          await waitForFinishedPage(player2, seriesId);
+
+          const gameCount = seriesResult.split(' - ').length;
+
+          // Verify P1's finished page UI
+          const p1UI = await verifyFinishedPageUI(player1, gameCount);
+          expect(['Victory!', 'Defeat']).toContain(p1UI.banner);
+          expect(p1UI.gameRows).toBeGreaterThanOrEqual(gameCount);
+
+          // Verify P2's finished page UI (opposite banner)
+          const p2UI = await verifyFinishedPageUI(player2, gameCount);
+          expect(['Victory!', 'Defeat']).toContain(p2UI.banner);
+
+          // Banners should be opposite (one Victory!, one Defeat)
+          expect(p1UI.banner).not.toBe(p2UI.banner);
+
+          await takeScreenshot('finished-page-p1', player1);
+          await takeScreenshot('finished-page-p2', player2);
         });
       } finally {
         await player1Context.close();

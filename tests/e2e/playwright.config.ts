@@ -5,7 +5,7 @@ export default defineConfig({
   fullyParallel: true, // 각 테스트가 독립적인 계정 쌍 사용 → 병렬 실행 가능
   forbidOnly: !!process.env.CI,
   retries: 0, // No retries - fail fast
-  workers: 3, // 3 workers optimal with rate limiting disabled
+  workers: 3, // 3 workers - optimal for lila server capacity (see README.md)
   reporter: 'html',
 
   // Global setup: 테스트 전 한 번만 로그인

@@ -20,7 +20,7 @@ npm run report           # HTML 테스트 리포트 보기
 tests/e2e/
 ├── package.json           # npm 스크립트
 ├── playwright.config.ts   # Playwright 설정 (workers: 3, rate limiting OFF)
-├── global-setup.ts        # 22개 테스트 계정 로그인 + 세션 저장
+├── global-setup.ts        # 24개 테스트 계정 로그인 + 세션 저장
 ├── global-teardown.ts     # DB 리셋 (MongoDB + Redis)
 ├── helpers/
 │   ├── auth.ts            # 계정 정보, 로그인 헬퍼, 브라우저 컨텍스트
@@ -29,7 +29,8 @@ tests/e2e/
 └── specs/
     ├── series-banpick.spec.ts     # 밴픽 플로우 테스트 (Test 0~6)
     ├── series-disconnect.spec.ts  # Disconnect/Abort 테스트 (Test 7~8)
-    └── series-forfeit.spec.ts     # Series Forfeit 테스트 (Test 9~10)
+    ├── series-forfeit.spec.ts     # Series Forfeit 테스트 (Test 9~10)
+    └── series-finished.spec.ts    # Finished Page + Rematch 테스트 (Test 11)
 ```
 
 ## 테스트 계정 생성
@@ -86,6 +87,7 @@ const users = [
 | 8 | marcel | vera | ✅/✅ | ✅/🔌 | - | - | abort | Ban disconnect |
 | 9 | fatima | diego | ✅/✅ | ✅/✅ | forfeit(moves) | 1 | forfeit | P1 forfeit after moves |
 | 10 | salma | benjamin | ✅/✅ | ✅/✅ | forfeit(no moves) | 1 | forfeit | P1 forfeit before moves |
+| 11 | patricia | adriana | ✅/✅ | ✅/✅ | 1 - 1 - 1 | 3 | 3-0 | Finished page + rematch |
 
 ## Pick/Ban 행동 타입
 
@@ -177,7 +179,9 @@ test.describe('Test 0: elena vs hans', () => {
 | ON | 7 | 4/7 | ~2m |
 | OFF | 7 | 5/7 | 2.1m |
 | ON | 1 | 7/7 | 5.6m |
-| **OFF** | **3** | **7/7** | **3.0m** |
+| OFF | 3 | 7/7 | 3.0m |
+| OFF | 6 | 10/12 | 4.9m |
+| **OFF** | **3** | **12/12** | **6.4m** |
 
 ## Claude 가이드라인
 
@@ -188,7 +192,7 @@ test.describe('Test 0: elena vs hans', () => {
 
 ## 실전 팁
 
-- **병렬 실행**: 11개 테스트가 독립적 → `workers: 3`으로 안정적 병렬 실행
+- **병렬 실행**: 12개 테스트가 독립적 → `workers: 3`으로 안정적 병렬 실행
 - **API 기반 검증**: UI 대신 Series API로 상태 확인 (`isSeriesFinished`)
 - **게임 상태 조회**: Board API streaming으로 정확한 FEN 조회 (`/api/board/game/stream/{gameId}`)
 - **스크린샷**: 주요 시점마다 `test.info().attach()`로 첨부
@@ -209,6 +213,7 @@ test.describe('Test 0: elena vs hans', () => {
 | 9 | marcel | vera | Disconnect Test 8 | series-disconnect |
 | 10 | fatima | diego | Forfeit Test 9 | series-forfeit |
 | 11 | salma | benjamin | Forfeit Test 10 | series-forfeit |
+| 12 | patricia | adriana | Finished + Rematch Test 11 | series-finished |
 
 > **중요**: 각 쌍은 하나의 테스트에서만 사용 (병렬 충돌 방지)
 
@@ -255,6 +260,17 @@ test.describe('Test 0: elena vs hans', () => {
 | `confirmSeriesForfeit(page)` | forfeit 확인 다이얼로그의 확인 버튼 클릭 |
 | `forfeitSeriesViaApi(page, seriesId)` | `POST /series/{id}/forfeit` API 직접 호출 |
 
+### Finished Page 관련
+
+| 함수 | 설명 |
+|:---|:---|
+| `waitForFinishedPage(page, seriesId, timeout?)` | `/series/{id}/finished` 리다이렉트 대기 |
+| `verifyFinishedPageUI(page, expectedGameCount)` | Finished 페이지 UI 검증 (배너, 점수, 테이블) |
+| `clickRematchButton(page)` | Rematch 버튼 클릭 |
+| `isRematchOfferSent(page)` | "Rematch Offer Sent" 상태 확인 |
+| `isRematchGlowing(page)` | 상대의 glowing Rematch 버튼 확인 |
+| `waitForRematchRedirect(page, timeout?)` | 리매치 수락 후 새 시리즈 리다이렉트 대기 |
+
 ## UI 셀렉터 레퍼런스
 
 ### Pick/Ban 페이지 (`selectors`)
@@ -283,6 +299,26 @@ button.fbt.series-forfeit           # 시리즈 forfeit 버튼 (시리즈 게임
 .act-confirm button.fbt.yes.draw-yes # 무승부 확인 다이얼로그
 .ricons                             # 게임 컨트롤 버튼 컨테이너
 .result-wrap                        # 게임 종료 오버레이
+```
+
+### Finished 페이지 (`finishedSelectors`)
+
+```
+.series-finished                           # Finished 페이지 컨테이너
+.series-finished__result-banner            # Victory!/Defeat 배너
+.series-finished__result-banner.victory    # 승리 배너
+.series-finished__result-banner.defeat     # 패배 배너
+.series-finished__players                  # 플레이어 영역
+.series-finished__score                    # 플레이어 점수
+.series-finished__vs                       # "vs" 구분자
+.series-finished__score-table              # 점수 테이블
+tr.series-score__row                       # 게임별 결과 행
+.series-score__label                       # "Opening Duel" 라벨
+.series-finished__actions                  # 액션 버튼 영역
+button.series-finished__rematch            # Rematch 버튼
+button.series-finished__rematch.glowing    # 상대 offer 시 글로잉 버튼
+button.series-finished__rematch[disabled]  # Offer 전송 후 비활성 버튼
+a.series-finished__home                    # Home 버튼
 ```
 
 ### 시리즈 vs 일반 게임 버튼 레이아웃

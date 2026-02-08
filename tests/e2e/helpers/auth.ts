@@ -42,6 +42,9 @@ export const users = {
   // Pair 11: Series forfeit at game start (no moves)
   salma: { username: 'salma', password: 'password', storageState: '.auth/salma.json' },
   benjamin: { username: 'benjamin', password: 'password', storageState: '.auth/benjamin.json' },
+  // Pair 12: Finished page + rematch
+  patricia: { username: 'patricia', password: 'password', storageState: '.auth/patricia.json' },
+  adriana: { username: 'adriana', password: 'password', storageState: '.auth/adriana.json' },
 } as const;
 
 /**
