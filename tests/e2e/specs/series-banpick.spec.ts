@@ -1,11 +1,13 @@
 import { test, expect } from '@playwright/test';
 import { execSync } from 'child_process';
-import { testScenarios, createTwoPlayerContexts, loginBothPlayers } from '../helpers/auth';
+import { createTwoPlayerContexts, loginBothPlayers } from '../helpers/auth';
+import { testScenarios } from '../helpers/scenarios';
 import {
   createSeriesChallenge,
   completeBanPickPhase,
   executeSeriesResult,
   isSeriesFinished,
+  type ScreenshotFn,
 } from '../helpers/series';
 
 /**
@@ -77,9 +79,9 @@ function calculateTimeout(
   const gameCount = seriesResult.split(' - ').length;
   const timeoutBehaviorCount = countTimeoutBehaviors(pick, ban);
 
-  // Base 60s + 20s per game + 15s per timeout behavior
-  // Each timeout behavior adds ~5s server-side wait
-  const timeout = 60000 + gameCount * 20000 + timeoutBehaviorCount * 15000;
+  // Base 60s + 20s per game + 35s per timeout behavior
+  // Each timeout behavior adds ~30s server-side wait
+  const timeout = 60000 + gameCount * 20000 + timeoutBehaviorCount * 35000;
 
   return timeout;
 }
@@ -103,6 +105,17 @@ for (const scenario of testScenarios) {
         p2User
       );
 
+      // Screenshot helper: attaches screenshot to test report with sequential numbering
+      let screenshotCounter = 0;
+      const takeScreenshot: ScreenshotFn = async (name, page) => {
+        screenshotCounter++;
+        const label = `${String(screenshotCounter).padStart(2, '0')}-${name}`;
+        await test.info().attach(label, {
+          body: await page.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+      };
+
       let seriesId = '';
 
       try {
@@ -110,21 +123,12 @@ for (const scenario of testScenarios) {
         await test.step('Create series and reach Pick Phase', async () => {
           await loginBothPlayers(player1, player2, p1User, p2User);
           seriesId = await createSeriesChallenge(player1, player2, p2User.username);
-
-          await test.info().attach('01-series-created', {
-            body: await player1.screenshot({ fullPage: true }),
-            contentType: 'image/png',
-          });
+          await takeScreenshot('series-created', player1);
         });
 
         // ===== STEP 2: Complete Ban/Pick Phase =====
         await test.step(`Ban/Pick: pick(${pick.p1}/${pick.p2}) ban(${ban.p1}/${ban.p2})`, async () => {
-          await completeBanPickPhase(player1, player2, { pick, ban });
-
-          await test.info().attach('02-game1-started', {
-            body: await player1.screenshot({ fullPage: true }),
-            contentType: 'image/png',
-          });
+          await completeBanPickPhase(player1, player2, { pick, ban }, takeScreenshot);
         });
 
         // ===== STEP 3: Execute Series =====
@@ -135,13 +139,9 @@ for (const scenario of testScenarios) {
             p1User.username,
             p2User.username,
             seriesResult,
-            seriesId
+            seriesId,
+            takeScreenshot
           );
-
-          await test.info().attach('03-series-finished', {
-            body: await player1.screenshot({ fullPage: true }),
-            contentType: 'image/png',
-          });
         });
 
         // ===== STEP 4: Verify Series Finished =====

@@ -20,13 +20,15 @@ npm run report           # HTML 테스트 리포트 보기
 tests/e2e/
 ├── package.json           # npm 스크립트
 ├── playwright.config.ts   # Playwright 설정 (workers: 3, rate limiting OFF)
-├── global-setup.ts        # 14개 테스트 계정 로그인 + 세션 저장
+├── global-setup.ts        # 18개 테스트 계정 로그인 + 세션 저장
 ├── global-teardown.ts     # DB 리셋 (MongoDB + Redis)
 ├── helpers/
-│   ├── auth.ts            # 로그인 헬퍼, testPairs 정의
+│   ├── auth.ts            # 계정 정보, 로그인 헬퍼, 브라우저 컨텍스트
+│   ├── scenarios.ts       # 테스트 시나리오 매트릭스 (PickBanBehavior, testScenarios)
 │   └── series.ts          # 시리즈 조작 헬퍼 (selectOpenings, confirm 등)
 └── specs/
-    └── series-banpick.spec.ts  # 밴픽 플로우 테스트
+    ├── series-banpick.spec.ts     # 밴픽 플로우 테스트 (Test 0~6)
+    └── series-disconnect.spec.ts  # Disconnect/Abort 테스트 (Test 7~8)
 ```
 
 ## 테스트 계정 생성
@@ -79,6 +81,8 @@ const users = [
 | 4 | oscar | petra | ✅/⚠️ | ⚠️/✅ | 1 - ½ - 1 | 3 | 2.5-0.5 | 조기승리 |
 | 5 | boris | david | 🚫/✅ | ✅/⏰ | 1 - 0 - 1 - 0 - ½ - 1 | 6 | 3.5-2.5 | 서든데스 |
 | 6 | mei | ivan | ✅/🚫 | ⏰/✅ | 0 - 1 - 1 - 1 | 4 | 3-1 | 4경기 |
+| 7 | angel | bobby | ✅/🔌 | - | - | - | abort | Pick disconnect |
+| 8 | marcel | vera | ✅/✅ | ✅/🔌 | - | - | abort | Ban disconnect |
 
 ## Pick/Ban 행동 타입
 
@@ -88,7 +92,7 @@ const users = [
 | ⏰ | `full-timeout` | 5개 선택, confirm 안 함 → 타임아웃 | 2개 선택, confirm 안 함 → 타임아웃 |
 | ⚠️ | `partial-timeout` | 1~4개 선택 → 타임아웃 (서버가 랜덤 채움) | 1개 선택 → 타임아웃 (서버가 랜덤 채움) |
 | 🚫 | `none-timeout` | 0개 선택 → 타임아웃 (서버가 전부 랜덤) | 0개 선택 → 타임아웃 (서버가 전부 랜덤) |
-| 🔌 | `disconnected` | *(예정)* WebSocket 연결 끊김 → 시리즈 abort | *(예정)* WebSocket 연결 끊김 → 시리즈 abort |
+| 🔌 | `disconnected` | WebSocket 연결 끊김 → 시리즈 abort | WebSocket 연결 끊김 → 시리즈 abort |
 
 **커버리지 검증:**
 
@@ -98,8 +102,9 @@ const users = [
 | full-timeout | 2 | 1 | 6 | 5 |
 | partial-timeout | 3 | 4 | 4 | 3 |
 | none-timeout | 5 | 6 | 2 | 1 |
+| disconnected | - | 7 | - | 8 |
 
-→ 16개 조합 (4 행동 × 4 위치) 모두 커버됨
+→ 16개 조합 (4 행동 × 4 위치) 모두 커버됨 + disconnect 2개
 
 ## Series Result 표기법
 
@@ -180,8 +185,8 @@ test.describe('Test 0: elena vs hans', () => {
 
 ## 실전 팁
 
-- **병렬 실행**: 7개 테스트가 독립적 → `workers: 3`으로 안정적 병렬 실행
+- **병렬 실행**: 9개 테스트가 독립적 → `workers: 3`으로 안정적 병렬 실행
 - **API 기반 검증**: UI 대신 Series API로 상태 확인 (`isSeriesFinished`)
 - **게임 상태 조회**: Board API streaming으로 정확한 FEN 조회 (`/api/board/game/stream/{gameId}`)
 - **스크린샷**: 주요 시점마다 `test.info().attach()`로 첨부
-- **Disconnect 테스트**: 현재 스킵됨 (WebSocket 구현 필요)
+- **Disconnect 테스트**: `page.close()`로 WS 연결 끊김 시뮬레이션 → 30s timeout 후 abort 검증
