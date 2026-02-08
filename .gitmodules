@@ -10,3 +10,6 @@
 [submodule "repos/lila-db-seed"]
 	path = repos/lila-db-seed
 	url = https://github.com/Ootzk/chess-opening-duel-db-seed.git
+[submodule "repos/lila-ws"]
+	path = repos/lila-ws
+	url = https://github.com/Ootzk/chess-opening-duel-lila-ws.git

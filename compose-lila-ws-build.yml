@@ -15,6 +15,7 @@ services:
       - ENABLE_MONITORING=${ENABLE_MONITORING:-false}
     volumes:
       - ./repos/lila-ws:/lila-ws
+      - ./.git/modules/repos/lila-ws:/.git/modules/repos/lila-ws
       - ./conf/lila-ws.conf:/lila-ws.conf
     profiles:
-      - lila-ws-build
+      - base
