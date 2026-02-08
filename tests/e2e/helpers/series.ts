@@ -1568,3 +1568,116 @@ export async function getPlayerIndex(
   }
   return null;
 }
+
+// ===== Series Finished Page Helpers =====
+
+export const finishedSelectors = {
+  container: '.series-finished',
+  resultBanner: '.series-finished__result-banner',
+  victoryBanner: '.series-finished__result-banner.victory',
+  defeatBanner: '.series-finished__result-banner.defeat',
+  players: '.series-finished__players',
+  playerScore: '.series-finished__score',
+  vs: '.series-finished__vs',
+  scoreTable: '.series-finished__score-table',
+  scoreRow: 'tr.series-score__row',
+  scoreLabel: '.series-score__label',
+  actions: '.series-finished__actions',
+  rematchBtn: 'button.series-finished__rematch',
+  rematchGlowing: 'button.series-finished__rematch.glowing',
+  rematchDisabled: 'button.series-finished__rematch[disabled]',
+  homeBtn: 'a.series-finished__home',
+};
+
+/**
+ * Wait for finished page redirect after series ends.
+ * The game page sends a WS redirect to /series/{id}/finished.
+ */
+export async function waitForFinishedPage(
+  page: Page,
+  seriesId: string,
+  timeout = 15000
+): Promise<void> {
+  await page.waitForURL(new RegExp(`/series/${seriesId}/finished`), { timeout });
+  await expect(page.locator(finishedSelectors.container)).toBeVisible({ timeout: 10000 });
+}
+
+/**
+ * Verify finished page has the expected UI elements.
+ * Returns the banner text, player scores, and game row count.
+ */
+export async function verifyFinishedPageUI(
+  page: Page,
+  expectedGameCount: number
+): Promise<{ banner: string; scores: string[]; gameRows: number }> {
+  // Wait for Snabbdom rendering
+  await expect(page.locator(finishedSelectors.resultBanner)).toBeVisible({ timeout: 10000 });
+
+  // Banner text (Victory! or Defeat)
+  const banner = (await page.locator(finishedSelectors.resultBanner).textContent()) || '';
+
+  // Player scores (winner on left, loser on right)
+  const scoreElements = page.locator(finishedSelectors.playerScore);
+  const scoreCount = await scoreElements.count();
+  const scores: string[] = [];
+  for (let i = 0; i < scoreCount; i++) {
+    scores.push((await scoreElements.nth(i).textContent()) || '');
+  }
+
+  // Score table rows
+  const gameRows = await page.locator(finishedSelectors.scoreRow).count();
+
+  // Verify essential elements are present
+  await expect(page.locator(finishedSelectors.rematchBtn)).toBeVisible({ timeout: 5000 });
+  await expect(page.locator(finishedSelectors.homeBtn)).toBeVisible({ timeout: 5000 });
+  await expect(page.locator(finishedSelectors.scoreLabel)).toContainText('Opening Duel');
+  await expect(page.locator(finishedSelectors.vs)).toBeVisible();
+
+  console.log(`[verifyFinishedPageUI] banner="${banner}", scores=${JSON.stringify(scores)}, gameRows=${gameRows}, expected=${expectedGameCount}`);
+
+  return { banner, scores, gameRows };
+}
+
+/**
+ * Click the Rematch button on the finished page
+ */
+export async function clickRematchButton(page: Page): Promise<void> {
+  const btn = page.locator(`${finishedSelectors.rematchBtn}:not([disabled])`);
+  await expect(btn).toBeVisible({ timeout: 5000 });
+  await btn.click();
+}
+
+/**
+ * Check if the rematch button shows "Rematch Offer Sent" state.
+ * Uses auto-retrying expect() since the POST is async.
+ */
+export async function isRematchOfferSent(page: Page): Promise<boolean> {
+  try {
+    await expect(page.locator(finishedSelectors.rematchDisabled)).toBeVisible({ timeout: 5000 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Check if the rematch button is glowing (opponent offered rematch).
+ * Uses auto-retrying expect() since the WS notification is async.
+ */
+export async function isRematchGlowing(page: Page): Promise<boolean> {
+  try {
+    await expect(page.locator(finishedSelectors.rematchGlowing)).toBeVisible({ timeout: 5000 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Wait for rematch redirect to a new series pick page
+ */
+export async function waitForRematchRedirect(page: Page, timeout = 15000): Promise<string> {
+  await page.waitForURL(/\/series\/\w+\/pick/, { timeout });
+  const match = page.url().match(/\/series\/(\w+)/);
+  return match?.[1] || '';
+}

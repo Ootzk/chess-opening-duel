@@ -36,6 +36,9 @@ const users = [
   // Pair 11: salma + benjamin (series forfeit at game start)
   { username: 'salma', password: 'password', file: '.auth/salma.json' },
   { username: 'benjamin', password: 'password', file: '.auth/benjamin.json' },
+  // Pair 12: patricia + adriana (finished page + rematch)
+  { username: 'patricia', password: 'password', file: '.auth/patricia.json' },
+  { username: 'adriana', password: 'password', file: '.auth/adriana.json' },
 ];
 
 async function loginWithRetry(
