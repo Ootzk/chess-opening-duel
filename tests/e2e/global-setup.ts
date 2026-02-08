@@ -30,6 +30,12 @@ const users = [
   // Pair 9: marcel + vera (ban phase disconnect abort)
   { username: 'marcel', password: 'password', file: '.auth/marcel.json' },
   { username: 'vera', password: 'password', file: '.auth/vera.json' },
+  // Pair 10: fatima + diego (series forfeit during game)
+  { username: 'fatima', password: 'password', file: '.auth/fatima.json' },
+  { username: 'diego', password: 'password', file: '.auth/diego.json' },
+  // Pair 11: salma + benjamin (series forfeit at game start)
+  { username: 'salma', password: 'password', file: '.auth/salma.json' },
+  { username: 'benjamin', password: 'password', file: '.auth/benjamin.json' },
 ];
 
 async function loginWithRetry(

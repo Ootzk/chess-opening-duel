@@ -36,6 +36,12 @@ export const users = {
   // Pair 9: Ban phase disconnect abort
   marcel: { username: 'marcel', password: 'password', storageState: '.auth/marcel.json' },
   vera: { username: 'vera', password: 'password', storageState: '.auth/vera.json' },
+  // Pair 10: Series forfeit during game (with moves)
+  fatima: { username: 'fatima', password: 'password', storageState: '.auth/fatima.json' },
+  diego: { username: 'diego', password: 'password', storageState: '.auth/diego.json' },
+  // Pair 11: Series forfeit at game start (no moves)
+  salma: { username: 'salma', password: 'password', storageState: '.auth/salma.json' },
+  benjamin: { username: 'benjamin', password: 'password', storageState: '.auth/benjamin.json' },
 } as const;
 
 /**

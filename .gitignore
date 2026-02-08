@@ -23,6 +23,9 @@ docker/assets/*.webp
 .scala-build
 settings.json
 
+# Claude Code
+.claude
+
 # E2E Tests
 tests/e2e/node_modules
 tests/e2e/dist
