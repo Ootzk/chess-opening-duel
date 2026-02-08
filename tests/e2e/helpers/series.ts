@@ -33,8 +33,6 @@ export const selectors = {
   randomSelecting: '.series-pick.random-selecting',
   countdown: '.series-pick__countdown',
 
-  // Selecting phase (loser selects)
-  selectingWaiting: '.series-pick.selecting-waiting',
 };
 
 /**
@@ -873,9 +871,6 @@ export async function getSeriesPhase(page: Page): Promise<string> {
   if (await page.locator(selectors.randomSelecting).isVisible({ timeout: 500 }).catch(() => false)) {
     return 'RandomSelecting';
   }
-  if (await page.locator(selectors.selectingWaiting).isVisible({ timeout: 500 }).catch(() => false)) {
-    return 'SelectingWaiting';
-  }
   // Check header text for phase
   const header = await page.locator(selectors.header).textContent().catch(() => '');
   if (header?.includes('Pick')) return 'Picking';
@@ -1134,15 +1129,16 @@ export async function isSeriesAborted(
  *
  * UI classes:
  * - .series-pick.random-selecting: RandomSelecting (5초 후 자동 리다이렉트)
- * - .series-pick.selecting-waiting: Selecting의 승자 (패자가 선택할 때까지 대기)
- * - 선택 가능한 오프닝(.series-pick__opening:not(.disabled)): Selecting의 패자만
+ * - Selecting: 양측 동일한 그리드 표시 (패자만 클릭 가능, 승자는 disabled)
+ *   - 패자: confirm 후 3초 cancel 윈도우 → WS phase 이벤트로 게임 리다이렉트
+ *   - 승자: 버튼 없음, WS phase 이벤트로 게임 리다이렉트 대기
  */
 export async function waitForNextGame(
   player1: Page,
   player2: Page,
   _loserPage: Page | null,  // Deprecated, kept for API compatibility
   previousGameId?: string,
-  timeout = 25000,
+  timeout = 30000,
   screenshot?: ScreenshotFn,
   gameNum?: number
 ): Promise<void> {
@@ -1182,35 +1178,24 @@ export async function waitForNextGame(
           continue;
         }
 
-        // 2. Selecting (승자): 패자가 선택할 때까지 대기
-        const isWaiting = await page.locator(selectors.selectingWaiting).isVisible().catch(() => false);
-        if (isWaiting) {
-          console.log(`[waitForNextGame] ${label} is winner, waiting for loser...`);
-          // Screenshot: winner's waiting view
-          if (screenshot && !screenshotTaken.selecting) {
-            screenshotTaken.selecting = true;
-            await screenshot(`game${gameNum}-winner-waiting`, page);
-            // Also capture the loser's selecting view
-            await screenshot(`game${gameNum}-loser-selecting`, otherPage);
-          }
-          await page.waitForTimeout(500);
-          continue;
-        }
-
-        // 3. Selecting (패자): 오프닝 선택
+        // 2. Selecting phase: 양측 동일 그리드, 패자만 클릭 가능
+        //    - 패자: selectable openings > 0 → 선택 + confirm → 3초 후 WS redirect
+        //    - 승자: all disabled → 그냥 대기 (WS redirect)
+        //    Screenshot: 패자 감지 시 양측 캡처
         if (!hasSelected) {
           const selectableOpenings = page.locator(`${selectors.opening}:not(.disabled)`);
           const count = await selectableOpenings.count();
           if (count > 0) {
             console.log(`[waitForNextGame] ${label} is loser, selecting opening (${count} available)...`);
-            // Screenshot: loser's selection view (if not already captured from winner's perspective)
+            // Screenshot: both players' views during Selecting
             if (screenshot && !screenshotTaken.selecting) {
               screenshotTaken.selecting = true;
               await screenshot(`game${gameNum}-loser-selecting`, page);
-              await screenshot(`game${gameNum}-winner-waiting`, otherPage);
+              await screenshot(`game${gameNum}-winner-watching`, otherPage);
             }
             await selectNextOpening(page, 0);
             hasSelected = true;
+            // After confirm, 3s cancel window → WS phase event → redirect
             continue;
           }
         }
@@ -1466,7 +1451,7 @@ export async function executeSeriesResult(
     // Wait for next game if not the last game
     if (!isLastGame) {
       await player1.waitForTimeout(500);
-      await waitForNextGame(player1, player2, null, lastGameId, 25000, screenshot, gameNum + 1);
+      await waitForNextGame(player1, player2, null, lastGameId, 30000, screenshot, gameNum + 1);
     }
   }
 
