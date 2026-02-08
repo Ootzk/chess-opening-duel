@@ -10,6 +10,8 @@ import {
   getPlayerIndex,
   clickSeriesForfeitButton,
   confirmSeriesForfeit,
+  waitForFinishedPage,
+  verifyFinishedPageUI,
   gameSelectors,
   type ScreenshotFn,
 } from '../helpers/series';
@@ -152,6 +154,23 @@ test.describe('Test 9: fatima vs diego (Forfeit after moves)', () => {
 
         await takeScreenshot('series-verified', player1);
       });
+
+      // Step 7: Verify finished page redirect
+      await test.step('Verify finished page redirect after forfeit', async () => {
+        await waitForFinishedPage(player1, seriesId);
+        await waitForFinishedPage(player2, seriesId);
+
+        const p1UI = await verifyFinishedPageUI(player1, 1);
+        const p2UI = await verifyFinishedPageUI(player2, 1);
+
+        // One should see Victory!, the other Defeat
+        expect(p1UI.banner).not.toBe(p2UI.banner);
+        expect(['Victory!', 'Defeat']).toContain(p1UI.banner);
+        expect(['Victory!', 'Defeat']).toContain(p2UI.banner);
+
+        await takeScreenshot('finished-page-p1', player1);
+        await takeScreenshot('finished-page-p2', player2);
+      });
     } finally {
       await player1Context.close();
       await player2Context.close();
@@ -233,6 +252,23 @@ test.describe('Test 10: salma vs benjamin (Forfeit before moves)', () => {
         expect(winner).toBe(1 - salmaIndex!);
 
         await takeScreenshot('series-verified', player1);
+      });
+
+      // Step 5: Verify finished page redirect
+      await test.step('Verify finished page redirect after forfeit', async () => {
+        await waitForFinishedPage(player1, seriesId);
+        await waitForFinishedPage(player2, seriesId);
+
+        const p1UI = await verifyFinishedPageUI(player1, 1);
+        const p2UI = await verifyFinishedPageUI(player2, 1);
+
+        // One should see Victory!, the other Defeat
+        expect(p1UI.banner).not.toBe(p2UI.banner);
+        expect(['Victory!', 'Defeat']).toContain(p1UI.banner);
+        expect(['Victory!', 'Defeat']).toContain(p2UI.banner);
+
+        await takeScreenshot('finished-page-p1', player1);
+        await takeScreenshot('finished-page-p2', player2);
       });
     } finally {
       await player1Context.close();
