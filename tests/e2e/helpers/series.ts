@@ -219,6 +219,12 @@ export async function getSelectedOpeningNames(page: Page): Promise<string[]> {
   return names;
 }
 
+/**
+ * Screenshot callback type for E2E test evidence
+ * Takes a descriptive name and the page to screenshot
+ */
+export type ScreenshotFn = (name: string, page: Page) => Promise<void>;
+
 // ===== Series Creation via Challenge Flow =====
 
 // Lobby and Setup selectors
@@ -1078,6 +1084,43 @@ export async function isSeriesFinished(
 }
 
 /**
+ * Check if series is aborted by calling the Series API directly
+ * Status 40 = Aborted
+ */
+export async function isSeriesAborted(
+  page: Page,
+  seriesId: string,
+  retries = 5
+): Promise<boolean> {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const response = await page.request.get(`http://localhost:8080/series/${seriesId}`, {
+        headers: { Accept: 'application/json' },
+      });
+
+      if (response.ok()) {
+        const data = await response.json();
+        const statusId = typeof data.status === 'number' ? data.status : data.status?.id;
+        console.log(`[isSeriesAborted] attempt=${attempt}, status=${statusId}`);
+
+        if (statusId === 40) {
+          return true;
+        }
+
+        if (attempt < retries) {
+          await page.waitForTimeout(2000);
+        }
+      }
+    } catch (err) {
+      console.log(`[isSeriesAborted] API error on attempt ${attempt}:`, err);
+    }
+  }
+
+  console.log(`[isSeriesAborted] Series ${seriesId} not aborted after ${retries} attempts`);
+  return false;
+}
+
+/**
  * Wait for next game to start after a game ends
  *
  * Phase transitions (from CLAUDE.md):
@@ -1095,15 +1138,18 @@ export async function waitForNextGame(
   player2: Page,
   _loserPage: Page | null,  // Deprecated, kept for API compatibility
   previousGameId?: string,
-  timeout = 25000
+  timeout = 25000,
+  screenshot?: ScreenshotFn,
+  gameNum?: number
 ): Promise<void> {
   console.log(`[waitForNextGame] previousGameId=${previousGameId}, starting...`);
 
   const startTime = Date.now();
   let hasSelected = false; // 패자가 오프닝을 선택했는지 추적
+  let screenshotTaken = { selecting: false, randomSelecting: false }; // prevent duplicate screenshots
 
   // Helper: 한 플레이어의 상태를 체크하고 필요시 행동
-  const handlePlayer = async (page: Page, label: string): Promise<void> => {
+  const handlePlayer = async (page: Page, label: string, otherPage: Page): Promise<void> => {
     while (Date.now() - startTime < timeout) {
       const path = new URL(page.url()).pathname;
 
@@ -1123,6 +1169,11 @@ export async function waitForNextGame(
         const isRandomSelecting = await page.locator(selectors.randomSelecting).isVisible().catch(() => false);
         if (isRandomSelecting) {
           console.log(`[waitForNextGame] ${label} in RandomSelecting (countdown)`);
+          // Screenshot: random selecting (draw case)
+          if (screenshot && !screenshotTaken.randomSelecting) {
+            screenshotTaken.randomSelecting = true;
+            await screenshot(`game${gameNum}-random-selecting`, page);
+          }
           await page.waitForTimeout(500);
           continue;
         }
@@ -1131,6 +1182,13 @@ export async function waitForNextGame(
         const isWaiting = await page.locator(selectors.selectingWaiting).isVisible().catch(() => false);
         if (isWaiting) {
           console.log(`[waitForNextGame] ${label} is winner, waiting for loser...`);
+          // Screenshot: winner's waiting view
+          if (screenshot && !screenshotTaken.selecting) {
+            screenshotTaken.selecting = true;
+            await screenshot(`game${gameNum}-winner-waiting`, page);
+            // Also capture the loser's selecting view
+            await screenshot(`game${gameNum}-loser-selecting`, otherPage);
+          }
           await page.waitForTimeout(500);
           continue;
         }
@@ -1141,6 +1199,12 @@ export async function waitForNextGame(
           const count = await selectableOpenings.count();
           if (count > 0) {
             console.log(`[waitForNextGame] ${label} is loser, selecting opening (${count} available)...`);
+            // Screenshot: loser's selection view (if not already captured from winner's perspective)
+            if (screenshot && !screenshotTaken.selecting) {
+              screenshotTaken.selecting = true;
+              await screenshot(`game${gameNum}-loser-selecting`, page);
+              await screenshot(`game${gameNum}-winner-waiting`, otherPage);
+            }
             await selectNextOpening(page, 0);
             hasSelected = true;
             continue;
@@ -1155,8 +1219,8 @@ export async function waitForNextGame(
 
   // 양 플레이어 병렬로 처리
   await Promise.all([
-    handlePlayer(player1, 'P1'),
-    handlePlayer(player2, 'P2'),
+    handlePlayer(player1, 'P1', player2),
+    handlePlayer(player2, 'P2', player1),
   ]);
 
   // 보드 표시 확인
@@ -1165,6 +1229,11 @@ export async function waitForNextGame(
 
   const newGameId = getGameIdFromUrl(player1.url());
   console.log(`[waitForNextGame] Both players on game ${newGameId}`);
+
+  // Screenshot: next game board loaded
+  if (screenshot && gameNum) {
+    await screenshot(`game${gameNum}-board`, player1);
+  }
 }
 
 /**
@@ -1228,7 +1297,8 @@ export interface BanPickOptions {
 export async function completeBanPickPhase(
   player1: Page,
   player2: Page,
-  options?: BanPickOptions
+  options?: BanPickOptions,
+  screenshot?: ScreenshotFn
 ): Promise<void> {
   // Default to confirm for all if no options provided
   const opts: BanPickOptions = options || {
@@ -1248,6 +1318,14 @@ export async function completeBanPickPhase(
     executePickBanBehavior(player2, opts.pick.p2, 'pick'),
   ]);
 
+  // Screenshot: after pick selections
+  if (screenshot) {
+    await Promise.all([
+      screenshot('pick-p1-selected', player1),
+      screenshot('pick-p2-selected', player2),
+    ]);
+  }
+
   // If any player needs timeout, wait for phase transition
   const pickNeedsTimeout = needsTimeout(opts.pick.p1) || needsTimeout(opts.pick.p2);
   if (pickNeedsTimeout) {
@@ -1258,8 +1336,9 @@ export async function completeBanPickPhase(
     await waitForPhase(player2, 'Ban Phase', 50000);
   } else {
     // Both confirmed - wait for phase transition
-    await waitForPhase(player1, 'Ban Phase', 10000);
-    await waitForPhase(player2, 'Ban Phase', 10000);
+    // bothConfirmedDelay (3s) + screenshot overhead + server load → 15s buffer
+    await waitForPhase(player1, 'Ban Phase', 15000);
+    await waitForPhase(player2, 'Ban Phase', 15000);
   }
 
   // ===== Ban Phase =====
@@ -1269,11 +1348,27 @@ export async function completeBanPickPhase(
     waitForSnabbdomReady(player2),
   ]);
 
+  // Screenshot: ban phase reached (shows opponent's picks)
+  if (screenshot) {
+    await Promise.all([
+      screenshot('ban-p1-phase', player1),
+      screenshot('ban-p2-phase', player2),
+    ]);
+  }
+
   // Execute ban behaviors in parallel
   await Promise.all([
     executePickBanBehavior(player1, opts.ban.p1, 'ban'),
     executePickBanBehavior(player2, opts.ban.p2, 'ban'),
   ]);
+
+  // Screenshot: after ban selections
+  if (screenshot) {
+    await Promise.all([
+      screenshot('ban-p1-selected', player1),
+      screenshot('ban-p2-selected', player2),
+    ]);
+  }
 
   // If any player needs timeout, wait for phase transition
   const banNeedsTimeout = needsTimeout(opts.ban.p1) || needsTimeout(opts.ban.p2);
@@ -1283,12 +1378,26 @@ export async function completeBanPickPhase(
 
   // Wait for RandomSelecting phase (Game 1 random selection)
   // After ban timeout (30s) + bothConfirmedDelay (3s) → RandomSelecting → game
-  const gameWaitTimeout = banNeedsTimeout ? 50000 : 15000;
-  await waitForRandomSelecting(player1, gameWaitTimeout).catch(() => {});
+  // Even confirm/confirm path needs 30s under parallel test server load
+  const gameWaitTimeout = banNeedsTimeout ? 50000 : 30000;
+  const reachedRandomSelecting = await waitForRandomSelecting(player1, gameWaitTimeout).then(() => true).catch(() => false);
+
+  // Screenshot: random selecting phase
+  if (screenshot && reachedRandomSelecting) {
+    await screenshot('random-selecting', player1);
+  }
 
   // Wait for game to start (after RandomSelecting 5s countdown)
   await waitForGamePage(player1, gameWaitTimeout);
   await waitForGamePage(player2, gameWaitTimeout);
+
+  // Screenshot: game 1 board loaded
+  if (screenshot) {
+    await Promise.all([
+      screenshot('game1-p1-board', player1),
+      screenshot('game1-p2-board', player2),
+    ]);
+  }
 }
 
 /**
@@ -1323,7 +1432,8 @@ export async function executeSeriesResult(
   p1Username: string,
   p2Username: string,
   seriesResult: string,
-  seriesId: string
+  seriesId: string,
+  screenshot?: ScreenshotFn
 ): Promise<void> {
   const outcomes = parseSeriesResult(seriesResult);
   console.log(`[executeSeriesResult] Playing ${outcomes.length} games: ${seriesResult}`);
@@ -1333,16 +1443,26 @@ export async function executeSeriesResult(
   for (let i = 0; i < outcomes.length; i++) {
     const outcome = outcomes[i];
     const isLastGame = i === outcomes.length - 1;
+    const gameNum = i + 1;
 
-    console.log(`[executeSeriesResult] Game ${i + 1}/${outcomes.length}: ${outcome}`);
+    console.log(`[executeSeriesResult] Game ${gameNum}/${outcomes.length}: ${outcome}`);
 
     // Play the game
     lastGameId = await playOneGame(player1, player2, p1Username, p2Username, outcome);
 
+    // Screenshot: game result (both players' views)
+    if (screenshot) {
+      await player1.waitForTimeout(300);
+      await Promise.all([
+        screenshot(`game${gameNum}-result-p1`, player1),
+        screenshot(`game${gameNum}-result-p2`, player2),
+      ]);
+    }
+
     // Wait for next game if not the last game
     if (!isLastGame) {
       await player1.waitForTimeout(500);
-      await waitForNextGame(player1, player2, null, lastGameId, 25000);
+      await waitForNextGame(player1, player2, null, lastGameId, 25000, screenshot, gameNum + 1);
     }
   }
 
@@ -1353,4 +1473,12 @@ export async function executeSeriesResult(
     throw new Error(`Series ${seriesId} did not finish after ${outcomes.length} games`);
   }
   console.log(`[executeSeriesResult] Series ${seriesId} finished successfully`);
+
+  // Screenshot: series finished (both players' final views)
+  if (screenshot) {
+    await Promise.all([
+      screenshot('series-finished-p1', player1),
+      screenshot('series-finished-p2', player2),
+    ]);
+  }
 }

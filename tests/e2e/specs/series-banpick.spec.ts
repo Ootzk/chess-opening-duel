@@ -6,6 +6,7 @@ import {
   completeBanPickPhase,
   executeSeriesResult,
   isSeriesFinished,
+  type ScreenshotFn,
 } from '../helpers/series';
 
 /**
@@ -103,6 +104,17 @@ for (const scenario of testScenarios) {
         p2User
       );
 
+      // Screenshot helper: attaches screenshot to test report with sequential numbering
+      let screenshotCounter = 0;
+      const takeScreenshot: ScreenshotFn = async (name, page) => {
+        screenshotCounter++;
+        const label = `${String(screenshotCounter).padStart(2, '0')}-${name}`;
+        await test.info().attach(label, {
+          body: await page.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+      };
+
       let seriesId = '';
 
       try {
@@ -110,21 +122,12 @@ for (const scenario of testScenarios) {
         await test.step('Create series and reach Pick Phase', async () => {
           await loginBothPlayers(player1, player2, p1User, p2User);
           seriesId = await createSeriesChallenge(player1, player2, p2User.username);
-
-          await test.info().attach('01-series-created', {
-            body: await player1.screenshot({ fullPage: true }),
-            contentType: 'image/png',
-          });
+          await takeScreenshot('series-created', player1);
         });
 
         // ===== STEP 2: Complete Ban/Pick Phase =====
         await test.step(`Ban/Pick: pick(${pick.p1}/${pick.p2}) ban(${ban.p1}/${ban.p2})`, async () => {
-          await completeBanPickPhase(player1, player2, { pick, ban });
-
-          await test.info().attach('02-game1-started', {
-            body: await player1.screenshot({ fullPage: true }),
-            contentType: 'image/png',
-          });
+          await completeBanPickPhase(player1, player2, { pick, ban }, takeScreenshot);
         });
 
         // ===== STEP 3: Execute Series =====
@@ -135,13 +138,9 @@ for (const scenario of testScenarios) {
             p1User.username,
             p2User.username,
             seriesResult,
-            seriesId
+            seriesId,
+            takeScreenshot
           );
-
-          await test.info().attach('03-series-finished', {
-            body: await player1.screenshot({ fullPage: true }),
-            contentType: 'image/png',
-          });
         });
 
         // ===== STEP 4: Verify Series Finished =====
