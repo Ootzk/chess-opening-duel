@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { execSync } from 'child_process';
 import { users, createTwoPlayerContexts, loginBothPlayers } from '../helpers/auth';
+import { cleanupPairData } from '../helpers/cleanup';
 import {
   createSeriesChallenge,
   completeBanPickPhase,
@@ -30,25 +30,6 @@ import { verifyOpeningsTab } from '../helpers/openings-tab';
  * | 9 | fatima | diego | Forfeit after moves | Game resign, series finished, P2 wins |
  * | 10 | salma | benjamin | Forfeit before moves | Game abort, series finished, P2 wins |
  */
-
-function cleanupPairData(usernames: string[]) {
-  try {
-    const mongoCommand = `
-      db.game5.deleteMany({ "players.user.id": { $in: ${JSON.stringify(usernames)} } });
-      db.series.deleteMany({ "players.userId": { $in: ${JSON.stringify(usernames)} } });
-      db.challenge.deleteMany({ $or: [
-        { "challenger.user.id": { $in: ${JSON.stringify(usernames)} } },
-        { "destUser.id": { $in: ${JSON.stringify(usernames)} } }
-      ]});
-    `.replace(/\n/g, ' ');
-    execSync(
-      `docker exec chess-opening-duel-mongodb-1 mongosh lichess --quiet --eval '${mongoCommand}'`,
-      { encoding: 'utf-8', timeout: 10000 }
-    );
-  } catch {
-    // Ignore cleanup errors
-  }
-}
 
 // ===== Test 9: Forfeit during active game (after moves) =====
 test.describe('Test 9: fatima vs diego (Forfeit after moves)', () => {

@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { execSync } from 'child_process';
 import { createTwoPlayerContexts, loginBothPlayers } from '../helpers/auth';
+import { cleanupPairData } from '../helpers/cleanup';
 import { testScenarios } from '../helpers/scenarios';
 import {
   createSeriesChallenge,
@@ -39,25 +39,6 @@ import {
  * - 1/2 = Draw
  */
 
-// Cleanup helper for specific user pair
-function cleanupPairData(users: string[]) {
-  try {
-    const mongoCommand = `
-      db.game5.deleteMany({ "players.user.id": { $in: ${JSON.stringify(users)} } });
-      db.series.deleteMany({ "players.userId": { $in: ${JSON.stringify(users)} } });
-      db.challenge.deleteMany({ $or: [
-        { "challenger.user.id": { $in: ${JSON.stringify(users)} } },
-        { "destUser.id": { $in: ${JSON.stringify(users)} } }
-      ]});
-    `.replace(/\n/g, ' ');
-    execSync(
-      `docker exec chess-opening-duel-mongodb-1 mongosh lichess --quiet --eval '${mongoCommand}'`,
-      { encoding: 'utf-8', timeout: 10000 }
-    );
-  } catch {
-    // Ignore cleanup errors
-  }
-}
 
 // Count timeout behaviors in pick/ban options
 function countTimeoutBehaviors(

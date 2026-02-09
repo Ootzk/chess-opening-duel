@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { execSync } from 'child_process';
 import { createTwoPlayerContexts, loginBothPlayers, users } from '../helpers/auth';
+import { cleanupPairData } from '../helpers/cleanup';
 import {
   createSeriesChallenge,
   selectOpenings,
@@ -29,25 +29,6 @@ import { verifyOpeningsTab } from '../helpers/openings-tab';
  * Test 1 (mary vs jose): Countdown appears and decrements in pick/ban phases
  * Test 2 (iryna vs pedro): Countdown cancel + re-confirm behavior
  */
-
-function cleanupPairData(usernames: string[]) {
-  try {
-    const mongoCommand = `
-      db.game5.deleteMany({ "players.user.id": { $in: ${JSON.stringify(usernames)} } });
-      db.series.deleteMany({ "players.userId": { $in: ${JSON.stringify(usernames)} } });
-      db.challenge.deleteMany({ $or: [
-        { "challenger.user.id": { $in: ${JSON.stringify(usernames)} } },
-        { "destUser.id": { $in: ${JSON.stringify(usernames)} } }
-      ]});
-    `.replace(/\n/g, ' ');
-    execSync(
-      `docker exec chess-opening-duel-mongodb-1 mongosh lichess --quiet --eval '${mongoCommand}'`,
-      { encoding: 'utf-8', timeout: 10000 },
-    );
-  } catch {
-    // Ignore cleanup errors
-  }
-}
 
 // ===== Test 1: Countdown appears and decrements =====
 test.describe('Test 1: Countdown appears in pick/ban phases (mary vs jose)', () => {
