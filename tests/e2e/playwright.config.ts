@@ -8,10 +8,8 @@ export default defineConfig({
   workers: 3, // 3 workers - optimal for lila server capacity (see README.md)
   reporter: 'html',
 
-  // Global setup: 테스트 전 한 번만 로그인
+  // Global setup: 테스트 전 한 번만 로그인 (세션 유효하면 스킵)
   globalSetup: require.resolve('./global-setup'),
-  // Global teardown: 테스트 후 DB 정리
-  globalTeardown: require.resolve('./global-teardown'),
 
   use: {
     baseURL: 'http://localhost:8080',

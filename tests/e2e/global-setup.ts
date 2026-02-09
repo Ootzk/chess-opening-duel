@@ -1,4 +1,5 @@
 import { chromium, FullConfig } from '@playwright/test';
+import * as fs from 'fs';
 
 // 7 test account pairs for parallel test execution
 // Each pair tests different scenarios independently
@@ -118,9 +119,44 @@ async function loginWithRetry(
   }
 }
 
+async function isSessionValid(
+  baseURL: string,
+  user: { username: string; file: string }
+): Promise<boolean> {
+  if (!fs.existsSync(user.file)) return false;
+
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const context = await browser.newContext({
+      storageState: user.file,
+      userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    });
+    const page = await context.newPage();
+    await page.goto(`${baseURL}/`);
+    await page.waitForLoadState('domcontentloaded');
+
+    const isLoggedIn =
+      !page.url().includes('/login') &&
+      (await page.locator('#user_tag').isVisible({ timeout: 3000 }).catch(() => false));
+
+    await browser.close();
+    return isLoggedIn;
+  } catch {
+    await browser.close();
+    return false;
+  }
+}
+
 async function globalSetup(config: FullConfig) {
   const baseURL = config.projects[0].use.baseURL || 'http://localhost:8080';
 
+  // Check if existing sessions are still valid (skip login if so)
+  if (await isSessionValid(baseURL, users[0])) {
+    console.log('✓ Existing sessions still valid, skipping login');
+    return;
+  }
+
+  console.log('Sessions expired or missing, logging in all users...');
   for (const user of users) {
     await loginWithRetry(baseURL, user);
   }

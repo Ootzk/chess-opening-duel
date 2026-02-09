@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { execSync } from 'child_process';
 import { users, createTwoPlayerContexts, loginBothPlayers } from '../helpers/auth';
+import { cleanupPairData } from '../helpers/cleanup';
 import {
   createSeriesChallenge,
   completeBanPickPhase,
@@ -37,25 +37,6 @@ import {
  * | 14 | aaron | jacob | Playing | P2 disconnects during game 1 | Series forfeit (P1 wins) |
  * | 15 | svetlana | qing | Playing | P2 disconnects during game 3 (score 0-2) | Series forfeit (P1 wins despite losing) |
  */
-
-function cleanupPairData(usernames: string[]) {
-  try {
-    const mongoCommand = `
-      db.game5.deleteMany({ "players.user.id": { $in: ${JSON.stringify(usernames)} } });
-      db.series.deleteMany({ "players.userId": { $in: ${JSON.stringify(usernames)} } });
-      db.challenge.deleteMany({ $or: [
-        { "challenger.user.id": { $in: ${JSON.stringify(usernames)} } },
-        { "destUser.id": { $in: ${JSON.stringify(usernames)} } }
-      ]});
-    `.replace(/\n/g, ' ');
-    execSync(
-      `docker exec chess-opening-duel-mongodb-1 mongosh lichess --quiet --eval '${mongoCommand}'`,
-      { encoding: 'utf-8', timeout: 10000 }
-    );
-  } catch {
-    // Ignore cleanup errors
-  }
-}
 
 // ===== Test 7: Pick Phase Disconnect =====
 test.describe('Test 7: angel vs bobby (Pick disconnect)', () => {
