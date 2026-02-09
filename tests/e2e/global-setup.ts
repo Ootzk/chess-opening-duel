@@ -45,6 +45,12 @@ const users = [
   // Pair 14: iryna + pedro (countdown cancel behavior)
   { username: 'iryna', password: 'password', file: '.auth/iryna.json' },
   { username: 'pedro', password: 'password', file: '.auth/pedro.json' },
+  // Pair 15: aaron + jacob (disconnect during game → series forfeit)
+  { username: 'aaron', password: 'password', file: '.auth/aaron.json' },
+  { username: 'jacob', password: 'password', file: '.auth/jacob.json' },
+  // Pair 16: svetlana + qing (0-2 then disconnect in game 3 → series forfeit)
+  { username: 'svetlana', password: 'password', file: '.auth/svetlana.json' },
+  { username: 'qing', password: 'password', file: '.auth/qing.json' },
 ];
 
 async function loginWithRetry(

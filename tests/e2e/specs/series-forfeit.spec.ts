@@ -174,8 +174,8 @@ test.describe('Test 9: fatima vs diego (Forfeit after moves)', () => {
 
         // One should see Victory!, the other Defeat
         expect(p1UI.banner).not.toBe(p2UI.banner);
-        expect(['Victory!', 'Defeat']).toContain(p1UI.banner);
-        expect(['Victory!', 'Defeat']).toContain(p2UI.banner);
+        expect(['Victory! (forfeit)', 'Defeat (forfeit)']).toContain(p1UI.banner);
+        expect(['Victory! (forfeit)', 'Defeat (forfeit)']).toContain(p2UI.banner);
 
         await takeScreenshot('finished-page-p1', player1);
         await takeScreenshot('finished-page-p2', player2);
@@ -281,8 +281,8 @@ test.describe('Test 10: salma vs benjamin (Forfeit before moves)', () => {
 
         // One should see Victory!, the other Defeat
         expect(p1UI.banner).not.toBe(p2UI.banner);
-        expect(['Victory!', 'Defeat']).toContain(p1UI.banner);
-        expect(['Victory!', 'Defeat']).toContain(p2UI.banner);
+        expect(['Victory! (forfeit)', 'Defeat (forfeit)']).toContain(p1UI.banner);
+        expect(['Victory! (forfeit)', 'Defeat (forfeit)']).toContain(p2UI.banner);
 
         await takeScreenshot('finished-page-p1', player1);
         await takeScreenshot('finished-page-p2', player2);
