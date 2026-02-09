@@ -18,6 +18,7 @@ import {
   selectors,
   type ScreenshotFn,
 } from '../helpers/series';
+import { verifyOpeningsTab } from '../helpers/openings-tab';
 
 /**
  * Series Countdown E2E Tests
@@ -169,6 +170,14 @@ test.describe('Test 1: Countdown appears in pick/ban phases (mary vs jose)', () 
         await waitForGamePage(player2, 30000);
         await takeScreenshot('game-started', player1);
       });
+
+      // ===== STEP 6: Verify Openings tab =====
+      await test.step('Verify Openings tab for both players', async () => {
+        await Promise.all([
+          verifyOpeningsTab(player1, seriesId, 'mary', takeScreenshot, 1),
+          verifyOpeningsTab(player2, seriesId, 'jose', takeScreenshot, 1),
+        ]);
+      });
     } finally {
       await player1Context.close();
       await player2Context.close();
@@ -305,6 +314,14 @@ test.describe('Test 2: Countdown cancel + re-confirm (iryna vs pedro)', () => {
         await waitForGamePage(player1, 30000);
         await waitForGamePage(player2, 30000);
         await takeScreenshot('game-started', player1);
+      });
+
+      // ===== STEP 7: Verify Openings tab =====
+      await test.step('Verify Openings tab for both players', async () => {
+        await Promise.all([
+          verifyOpeningsTab(player1, seriesId, 'iryna', takeScreenshot, 1),
+          verifyOpeningsTab(player2, seriesId, 'pedro', takeScreenshot, 1),
+        ]);
       });
     } finally {
       await player1Context.close();

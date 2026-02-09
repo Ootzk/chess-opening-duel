@@ -15,6 +15,7 @@ import {
   gameSelectors,
   type ScreenshotFn,
 } from '../helpers/series';
+import { verifyOpeningsTab } from '../helpers/openings-tab';
 
 /**
  * Series Forfeit E2E Tests
@@ -116,6 +117,14 @@ test.describe('Test 9: fatima vs diego (Forfeit after moves)', () => {
         await takeScreenshot('game-4-buttons', player1);
       });
 
+      // Step 3.5: Verify Openings tab
+      await test.step('Verify Openings tab for both players', async () => {
+        await Promise.all([
+          verifyOpeningsTab(player1, seriesId, 'fatima', takeScreenshot, 1),
+          verifyOpeningsTab(player2, seriesId, 'diego', takeScreenshot, 1),
+        ]);
+      });
+
       // Step 4: Both players make moves
       await test.step('Both players make moves', async () => {
         await playBothMoves(player1, player2, 'fatima', 'diego');
@@ -215,6 +224,14 @@ test.describe('Test 10: salma vs benjamin (Forfeit before moves)', () => {
       // Step 2: Complete ban/pick phase (both confirm)
       await test.step('Complete ban/pick phase', async () => {
         await completeBanPickPhase(player1, player2, undefined, takeScreenshot);
+      });
+
+      // Step 2.5: Verify Openings tab
+      await test.step('Verify Openings tab for both players', async () => {
+        await Promise.all([
+          verifyOpeningsTab(player1, seriesId, 'salma', takeScreenshot, 1),
+          verifyOpeningsTab(player2, seriesId, 'benjamin', takeScreenshot, 1),
+        ]);
       });
 
       // Step 3: Forfeit immediately without making moves

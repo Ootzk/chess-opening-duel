@@ -1,6 +1,7 @@
 import { Page, expect } from '@playwright/test';
 import { Chess } from 'chess.js';
 import type { PickBanBehavior } from './scenarios';
+import { verifyOpeningsTab } from './openings-tab';
 
 // Selectors matching view.ts structure
 export const selectors = {
@@ -1500,6 +1501,12 @@ export async function executeSeriesResult(
     const gameNum = i + 1;
 
     console.log(`[executeSeriesResult] Game ${gameNum}/${outcomes.length}: ${outcome}`);
+
+    // Verify Openings tab for both players before each game
+    await Promise.all([
+      verifyOpeningsTab(player1, seriesId, p1Username, screenshot, gameNum),
+      verifyOpeningsTab(player2, seriesId, p2Username, screenshot, gameNum),
+    ]);
 
     // Play the game
     lastGameId = await playOneGame(player1, player2, p1Username, p2Username, outcome);
