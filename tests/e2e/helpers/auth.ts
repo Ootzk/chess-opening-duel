@@ -51,6 +51,12 @@ export const users = {
   // Pair 14: Countdown cancel behavior
   iryna: { username: 'iryna', password: 'password', storageState: '.auth/iryna.json' },
   pedro: { username: 'pedro', password: 'password', storageState: '.auth/pedro.json' },
+  // Pair 15: Disconnect during game → series forfeit
+  aaron: { username: 'aaron', password: 'password', storageState: '.auth/aaron.json' },
+  jacob: { username: 'jacob', password: 'password', storageState: '.auth/jacob.json' },
+  // Pair 16: Disconnect during game 3 (after 0-2 score) → series forfeit
+  svetlana: { username: 'svetlana', password: 'password', storageState: '.auth/svetlana.json' },
+  qing: { username: 'qing', password: 'password', storageState: '.auth/qing.json' },
 } as const;
 
 /**
