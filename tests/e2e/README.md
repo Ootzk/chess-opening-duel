@@ -299,7 +299,7 @@ test.describe('Test 0: elena vs hans', () => {
 .series-pick__opening.disabled      # 비활성 오프닝
 .series-pick__action-btn            # 확인/취소 버튼 (Snabbdom 렌더 후 존재)
 .series-pick.random-selecting       # RandomSelecting 페이지
-.series-pick.selecting-waiting      # Selecting에서 승자 대기 화면
+.series-pick.selecting-waiting      # Selecting에서 패자 대기 화면
 .series-pick__opponent-status       # 상대 상태 (.ready / .waiting / .disconnected)
 .series-pick__countdown-text       # 카운트다운 텍스트 ("Ban phase starting in 3..." / "Game N starting in 3...")
 ```

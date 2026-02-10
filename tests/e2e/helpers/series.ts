@@ -1188,9 +1188,9 @@ export async function isSeriesAborted(
 /**
  * Wait for next game to start after a game ends
  *
- * Phase transitions (from CLAUDE.md):
- * - PLAY →|winner| SEL (Selecting: 패자가 픽 선택)
- * - PLAY →|draw| RS (RandomSelecting: ban pool에서 랜덤, 5초 카운트다운)
+ * Phase transitions:
+ * - PLAY →|winner| SEL (Selecting: 패자가 자기 남은 픽에서 선택)
+ * - PLAY →|draw| RS (RandomSelecting: 남은 픽 풀에서 랜덤, 5초 카운트다운)
  * - PLAY →|series done| FIN (시리즈 종료, 리다이렉트 없음)
  *
  * UI classes:

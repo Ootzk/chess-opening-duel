@@ -4,7 +4,7 @@ import { Page, expect } from '@playwright/test';
  * Openings Tab Verification Helpers
  *
  * Verifies the "Openings" tab in the game chat panel during series games.
- * Checks that each sub-tab (my picks, opponent picks, neutral) displays
+ * Checks that each sub-tab (my picks, opponent picks) displays
  * the correct remaining openings with matching names and FEN positions.
  */
 
@@ -35,8 +35,8 @@ export const openingsTabSelectors = {
 interface SeriesOpeningData {
   name: string;
   fen: string;
-  source: string; // 'pick' | 'ban' | 'neutral'
-  owner: number; // 0, 1, or -1
+  source: string; // 'pick' | 'ban'
+  owner: number; // 0 or 1
   usedInRound?: number | null;
 }
 
@@ -82,14 +82,6 @@ function computeRemainingPicks(openings: SeriesOpeningData[], playerIndex: numbe
     openings.filter(o => o.owner === (1 - playerIndex) && o.source === 'ban').map(o => o.name),
   );
   return picks.filter(p => !oppBanNames.has(p.name) && !p.usedInRound);
-}
-
-/**
- * Compute neutral pool.
- * Same logic as seriesOpenings.ts → neutralPool()
- */
-function computeNeutralPool(openings: SeriesOpeningData[]): SeriesOpeningData[] {
-  return openings.filter(o => (o.source === 'ban' || o.source === 'neutral') && !o.usedInRound);
 }
 
 /**
@@ -167,7 +159,7 @@ async function verifySubTabContent(
  *
  * 1. Fetches series data from API
  * 2. Clicks the Openings tab in chat panel
- * 3. Verifies each sub-tab (my picks, opponent picks, neutral)
+ * 3. Verifies each sub-tab (my picks, opponent picks)
  * 4. Takes a screenshot
  * 5. Switches back to Chat room tab
  */
@@ -191,11 +183,9 @@ export async function verifyOpeningsTab(
   // 3. Compute expected openings for each tab
   const expectedMy = computeRemainingPicks(openings, povIndex);
   const expectedOpp = computeRemainingPicks(openings, oppIndex);
-  const expectedNeutral = computeNeutralPool(openings);
-
   console.log(
     `[verifyOpeningsTab] ${username} (idx=${povIndex}): ` +
-      `my=${expectedMy.length}, opp=${expectedOpp.length}, neutral=${expectedNeutral.length}`,
+      `my=${expectedMy.length}, opp=${expectedOpp.length}`,
   );
 
   // 4. Click Openings tab in chat
@@ -213,11 +203,6 @@ export async function verifyOpeningsTab(
   await verifySubTabContent(page, 1, expectedOpp, `${username}-opp`);
   if (screenshot && gameNum) {
     await screenshot(`game${gameNum}-openings-opp-${username}`, page);
-  }
-
-  await verifySubTabContent(page, 2, expectedNeutral, `${username}-neutral`);
-  if (screenshot && gameNum) {
-    await screenshot(`game${gameNum}-openings-neutral-${username}`, page);
   }
 
   // 7. Switch back to Chat room tab
