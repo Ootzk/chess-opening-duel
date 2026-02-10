@@ -6,7 +6,7 @@ on:
       repo:
         description: 'Lila repository to build'
         required: false
-        default: 'lichess-org/lila'
+        default: 'Ootzk/chess-opening-duel-lila'
         type: string
       branch:
         description: 'Branch to build'
@@ -22,8 +22,6 @@ on:
           - 'all'
           - 'linux/amd64'
           - 'linux/arm64'
-  schedule:
-    - cron: '0 17 * * *'
   push:
     paths:
       - '.github/workflows/publish-image.yml'
@@ -37,20 +35,17 @@ jobs:
     permissions:
       contents: read
       packages: write
-    outputs:
-      is_lila_main: ${{ steps.build_vars.outputs.is_lila_main }}
     steps:
       - name: Setup build variables
         id: build_vars
         run: |
-          echo "repo=${{ github.event.inputs.repo || 'lichess-org/lila' }}" >> $GITHUB_OUTPUT
+          echo "repo=${{ github.event.inputs.repo || 'Ootzk/chess-opening-duel-lila' }}" >> $GITHUB_OUTPUT
           echo "branch=${{ github.event.inputs.branch || 'master' }}" >> $GITHUB_OUTPUT
           if [ "${{ github.event.inputs.platforms || 'all' }}" = "all" ]; then
             echo "platforms=linux/amd64,linux/arm64" >> $GITHUB_OUTPUT
           else
             echo "platforms=${{ github.event.inputs.platforms }}" >> $GITHUB_OUTPUT
           fi
-          echo "is_lila_main=$([ "${{ github.event.inputs.repo || 'lichess-org/lila' }}" = "lichess-org/lila" ] && [ "${{ github.event.inputs.branch || 'master' }}" = "master" ] && echo "true" || echo "false")" >> $GITHUB_OUTPUT
 
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -65,13 +60,13 @@ jobs:
       - name: Checkout lila-ws
         uses: actions/checkout@v5
         with:
-          repository: 'lichess-org/lila-ws'
+          repository: 'Ootzk/chess-opening-duel-lila-ws'
           path: 'repos/lila-ws'
 
       - name: Checkout lila-db-seed
         uses: actions/checkout@v5
         with:
-          repository: 'lichess-org/lila-db-seed'
+          repository: 'Ootzk/chess-opening-duel-db-seed'
           path: 'repos/lila-db-seed'
 
       - name: Set up QEMU
@@ -96,9 +91,8 @@ jobs:
           images: ghcr.io/${{ github.repository }}
           tags: |
             type=raw,prefix=lila-,value=${{ steps.build_vars.outputs.branch }}
-            type=raw,value=main,enable=${{ steps.build_vars.outputs.is_lila_main }}
-            type=raw,value=latest,enable=${{ steps.build_vars.outputs.is_lila_main }}
-      
+            type=raw,value=latest
+
       - name: Free disk space on Ubuntu runner
         uses: kfir4444/free-disk-space@main
         with:
@@ -113,11 +107,3 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-
-  deploy:
-    needs: build-and-publish
-    runs-on: ubuntu-latest
-    if: needs.build-and-publish.outputs.is_lila_main == 'true'
-    steps:
-      - name: Deploy nightly test site
-        run: curl --fail -X POST ${{ secrets.WEBHOOK_DEPLOY_NIGHTLY }}
