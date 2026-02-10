@@ -52,6 +52,9 @@ const users = [
   // Pair 16: svetlana + qing (0-2 then disconnect in game 3 → series forfeit)
   { username: 'svetlana', password: 'password', file: '.auth/svetlana.json' },
   { username: 'qing', password: 'password', file: '.auth/qing.json' },
+  // Pair 17: dmitry + milena (pool exhaustion → series draw)
+  { username: 'dmitry', password: 'password', file: '.auth/dmitry.json' },
+  { username: 'milena', password: 'password', file: '.auth/milena.json' },
 ];
 
 async function loginWithRetry(
@@ -152,7 +155,16 @@ async function globalSetup(config: FullConfig) {
 
   // Check if existing sessions are still valid (skip login if so)
   if (await isSessionValid(baseURL, users[0])) {
-    console.log('✓ Existing sessions still valid, skipping login');
+    // Login only users with missing session files
+    const missing = users.filter(u => !fs.existsSync(u.file));
+    if (missing.length === 0) {
+      console.log('✓ Existing sessions still valid, skipping login');
+      return;
+    }
+    console.log(`✓ Existing sessions valid, logging in ${missing.length} new user(s)...`);
+    for (const user of missing) {
+      await loginWithRetry(baseURL, user);
+    }
     return;
   }
 

@@ -1633,6 +1633,7 @@ export const finishedSelectors = {
   resultBanner: '.series-finished__result-banner',
   victoryBanner: '.series-finished__result-banner.victory',
   defeatBanner: '.series-finished__result-banner.defeat',
+  drawBanner: '.series-finished__result-banner.draw',
   players: '.series-finished__players',
   playerScore: '.series-finished__score',
   vs: '.series-finished__vs',

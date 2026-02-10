@@ -57,6 +57,9 @@ export const users = {
   // Pair 16: Disconnect during game 3 (after 0-2 score) → series forfeit
   svetlana: { username: 'svetlana', password: 'password', storageState: '.auth/svetlana.json' },
   qing: { username: 'qing', password: 'password', storageState: '.auth/qing.json' },
+  // Pair 17: Pool exhaustion → series draw
+  dmitry: { username: 'dmitry', password: 'password', storageState: '.auth/dmitry.json' },
+  milena: { username: 'milena', password: 'password', storageState: '.auth/milena.json' },
 } as const;
 
 /**
