@@ -946,7 +946,7 @@ export async function getSeriesPhase(page: Page): Promise<string> {
 }
 
 /**
- * Select next opening in Selecting phase (winner selects)
+ * Select next opening in Selecting phase (loser selects)
  */
 export async function selectNextOpening(page: Page, openingIndex = 0): Promise<void> {
   // Wait for Snabbdom to initialize after page redirect
@@ -1189,15 +1189,15 @@ export async function isSeriesAborted(
  * Wait for next game to start after a game ends
  *
  * Phase transitions:
- * - PLAY →|winner| SEL (Selecting: 승자가 자기 남은 픽에서 선택)
+ * - PLAY →|winner| SEL (Selecting: 패자가 자기 남은 픽에서 선택)
  * - PLAY →|draw| RS (RandomSelecting: 남은 픽 풀에서 랜덤, 5초 카운트다운)
  * - PLAY →|series done| FIN (시리즈 종료, 리다이렉트 없음)
  *
  * UI classes:
  * - .series-pick.random-selecting: RandomSelecting (5초 후 자동 리다이렉트)
- * - Selecting: 양측 동일한 그리드 표시 (승자만 클릭 가능, 패자는 disabled)
- *   - 승자: confirm 후 3초 cancel 윈도우 → WS phase 이벤트로 게임 리다이렉트
- *   - 패자: 버튼 없음, WS phase 이벤트로 게임 리다이렉트 대기
+ * - Selecting: 양측 동일한 그리드 표시 (패자만 클릭 가능, 승자는 disabled)
+ *   - 패자: confirm 후 3초 cancel 윈도우 → WS phase 이벤트로 게임 리다이렉트
+ *   - 승자: 버튼 없음, WS phase 이벤트로 게임 리다이렉트 대기
  */
 export async function waitForNextGame(
   player1: Page,
@@ -1211,7 +1211,7 @@ export async function waitForNextGame(
   console.log(`[waitForNextGame] previousGameId=${previousGameId}, starting...`);
 
   const startTime = Date.now();
-  let hasSelected = false; // 승자가 오프닝을 선택했는지 추적
+  let hasSelected = false; // 패자가 오프닝을 선택했는지 추적
   let screenshotTaken = { selecting: false, randomSelecting: false }; // prevent duplicate screenshots
 
   // Helper: 한 플레이어의 상태를 체크하고 필요시 행동
@@ -1244,20 +1244,20 @@ export async function waitForNextGame(
           continue;
         }
 
-        // 2. Selecting phase: 양측 동일 그리드, 승자만 클릭 가능
-        //    - 승자: selectable openings > 0 → 선택 + confirm → 3초 후 WS redirect
-        //    - 패자: all disabled → 그냥 대기 (WS redirect)
-        //    Screenshot: 승자 감지 시 양측 캡처
+        // 2. Selecting phase: 양측 동일 그리드, 패자만 클릭 가능
+        //    - 패자: selectable openings > 0 → 선택 + confirm → 3초 후 WS redirect
+        //    - 승자: all disabled → 그냥 대기 (WS redirect)
+        //    Screenshot: 패자 감지 시 양측 캡처
         if (!hasSelected) {
           const selectableOpenings = page.locator(`${selectors.opening}:not(.disabled)`);
           const count = await selectableOpenings.count();
           if (count > 0) {
-            console.log(`[waitForNextGame] ${label} is winner, selecting opening (${count} available)...`);
+            console.log(`[waitForNextGame] ${label} is loser, selecting opening (${count} available)...`);
             // Screenshot: both players' views during Selecting
             if (screenshot && !screenshotTaken.selecting) {
               screenshotTaken.selecting = true;
-              await screenshot(`game${gameNum}-winner-selecting`, page);
-              await screenshot(`game${gameNum}-loser-watching`, otherPage);
+              await screenshot(`game${gameNum}-loser-selecting`, page);
+              await screenshot(`game${gameNum}-winner-watching`, otherPage);
             }
             await selectNextOpening(page, 0);
             hasSelected = true;

@@ -387,7 +387,7 @@ test.describe('Test 15: svetlana vs qing (0-2 then game 3 disconnect → forfeit
         await takeScreenshot('game1-resigned', player1);
       });
 
-      // Step 4: Transition to game 2 (P2 won → P2 selects next opening)
+      // Step 4: Transition to game 2 (P2 won → P1 selects next opening as loser)
       await test.step('Wait for game 2', async () => {
         await waitForNextGame(player1, player2, null, game1Id, 30000, takeScreenshot, 2);
         await takeScreenshot('game2-started-p1', player1);
@@ -401,7 +401,7 @@ test.describe('Test 15: svetlana vs qing (0-2 then game 3 disconnect → forfeit
         await takeScreenshot('game2-resigned', player1);
       });
 
-      // Step 6: Transition to game 3 (P2 won → P2 selects next opening)
+      // Step 6: Transition to game 3 (P2 won → P1 selects next opening as loser)
       await test.step('Wait for game 3', async () => {
         await waitForNextGame(player1, player2, null, game2Id, 30000, takeScreenshot, 3);
         await takeScreenshot('game3-started-p1', player1);

@@ -21,7 +21,7 @@ lichess 오픈소스 기반의 커스텀 체스 게임. 특정 오프닝으로�
 2. **Ban Phase** (30초): 상대 픽 중 정확히 2개 밴 (미달 시 Confirm 비활성)
    - 타임아웃: 현재 선택 + 랜덤으로 2개 채워서 자동 확정
 3. **Game 1**: 양측 남은 픽 6개 중 랜덤 (밴된 오프닝은 완전 제거)
-4. **Game 2~**: 전 경기 승자가 자신의 남은 픽 중 선택 (무승부 시 남은 픽 풀에서 랜덤)
+4. **Game 2~**: 전 경기 패자가 자신의 남은 픽 중 선택 (무승부 시 남은 픽 풀에서 랜덤)
 
 #### Phase 상태
 
@@ -29,7 +29,7 @@ lichess 오픈소스 기반의 커스텀 체스 게임. 특정 오프닝으로�
 - `Banning` (20): 양측 밴 선택
 - `RandomSelecting` (25): Game 1 오프닝 랜덤 선택 중 (카운트다운)
 - `Playing` (30): 게임 진행 중
-- `Selecting` (35): 승자가 다음 오프닝 선택 중
+- `Selecting` (35): 패자가 다음 오프닝 선택 중
 - `Finished` (40): 시리즈 종료
 
 #### 플로우 다이어그램
@@ -73,7 +73,7 @@ flowchart TD
 | `SeriesCreated` | Series 생성 | `timeouts.schedule()` |
 | `SeriesPhaseChanged` | Phase 전환 | Banning: `schedule()`, 나머지: `cancel()` |
 | `SeriesAborted` | Timeout + Disconnected | - |
-| `SeriesEnterSelecting` | Game 2+ 승자 결정 | 클라이언트 리다이렉트 |
+| `SeriesEnterSelecting` | Game 2+ 승패 결정 | 클라이언트 리다이렉트 |
 | `SeriesDrawRandomSelecting` | Game 2+ 무승부 | 클라이언트 리다이렉트 |
 | `SeriesFinished` | 시리즈 종료 | - |
 
@@ -88,7 +88,7 @@ flowchart TD
 | POST | `/series/{id}/setBans` | 밴 설정 |
 | POST | `/series/{id}/confirmBans` | 밴 확정 |
 | POST | `/series/{id}/timeoutBans` | 밴 타임아웃 (랜덤 채우기) |
-| POST | `/series/{id}/selectNextOpening` | 다음 오프닝 선택 (승자용) |
+| POST | `/series/{id}/selectNextOpening` | 다음 오프닝 선택 (패자용) |
 
 #### 핵심 파일
 ```
@@ -290,7 +290,7 @@ docker compose exec lila ./lila.sh playRoutes
 - 양측 남은 픽 6개 중 랜덤 선택
 
 [Game 2~]
-- 전 경기 승자가 자기 픽 오프닝 선택 (별도 화면, 30초)
+- 전 경기 패자가 자기 픽 오프닝 선택 (별도 화면, 30초)
 - 타임아웃 또는 무승부 시: 남은 픽 풀에서 랜덤
 ```
 
@@ -301,8 +301,8 @@ docker compose exec lila ./lila.sh playRoutes
 | Match 모델 | picks, bans, phase 필드 추가 |
 | 밴픽 API | `/match/{id}/pick`, `/match/{id}/ban` |
 | 밴픽 UI | 별도 페이지 `/match/{id}/pick`에서 오프닝 선택/밴 |
-| 게임 시작 로직 | 랜덤/승자 선택 분기 처리 |
-| 오프닝 선택 UI | 승자가 다음 게임 오프닝 선택 |
+| 게임 시작 로직 | 랜덤/패자 선택 분기 처리 |
+| 오프닝 선택 UI | 패자가 다음 게임 오프닝 선택 |
 | WebSocket | 실시간 밴픽 상태 동기화 |
 
 **예상 데이터 구조:**
