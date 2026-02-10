@@ -20,7 +20,7 @@ npm run report           # HTML 테스트 리포트 보기
 tests/e2e/
 ├── package.json           # npm 스크립트
 ├── playwright.config.ts   # Playwright 설정 (workers: 3, rate limiting OFF)
-├── global-setup.ts        # 28개 테스트 계정 로그인 + 세션 저장
+├── global-setup.ts        # 34개 테스트 계정 로그인 + 세션 저장
 ├── global-teardown.ts     # DB 리셋 (MongoDB + Redis)
 ├── helpers/
 │   ├── auth.ts            # 계정 정보, 로그인 헬퍼, 브라우저 컨텍스트
@@ -30,8 +30,9 @@ tests/e2e/
     ├── series-banpick.spec.ts     # 밴픽 플로우 테스트 (Test 0~6)
     ├── series-countdown.spec.ts   # Countdown 테스트 (Test 12~13)
     ├── series-disconnect.spec.ts  # Disconnect/Abort 테스트 (Test 7~8)
-    ├── series-forfeit.spec.ts     # Series Forfeit 테스트 (Test 9~10)
-    └── series-finished.spec.ts    # Finished Page + Rematch 테스트 (Test 11)
+    ├── series-forfeit.spec.ts          # Series Forfeit 테스트 (Test 9~10)
+    ├── series-finished.spec.ts         # Finished Page + Rematch 테스트 (Test 11)
+    └── series-pool-exhaustion.spec.ts  # Pool Exhaustion → Draw 테스트 (Test 17)
 ```
 
 ## 테스트 계정 생성
@@ -91,6 +92,9 @@ const users = [
 | 11 | patricia | adriana | ✅/✅ | ✅/✅ | 1 - 1 - 1 | 3 | 3-0 | Finished page + rematch |
 | 12 | mary | jose | ✅/✅ | ✅/✅ | - | 1 | - | Countdown 표시 + 감소 |
 | 13 | iryna | pedro | ✅/✅ | ✅/✅ | - | 1 | - | Countdown cancel + 재시작 |
+| 14 | aaron | jacob | ✅/✅ | ✅/✅ | disconnect(game) | 1 | forfeit | 게임 중 disconnect → forfeit |
+| 15 | svetlana | qing | ✅/✅ | ✅/✅ | 0 - 0 + disconnect | 3 | forfeit | 0-2 후 game 3 disconnect → forfeit |
+| 17 | dmitry | milena | ✅/✅ | ✅/✅ | ½ - ½ - ½ - ½ - ½ - ½ | 6 | 3-3 draw | 풀 소진 → 시리즈 Draw |
 
 ## Pick/Ban 행동 타입
 
@@ -219,6 +223,9 @@ test.describe('Test 0: elena vs hans', () => {
 | 12 | patricia | adriana | Finished + Rematch Test 11 | series-finished |
 | 13 | mary | jose | Countdown Test 12 | series-countdown |
 | 14 | iryna | pedro | Countdown Test 13 | series-countdown |
+| 15 | aaron | jacob | Game Disconnect Test 14 | series-disconnect |
+| 16 | svetlana | qing | Game Disconnect Test 15 | series-disconnect |
+| 17 | dmitry | milena | Pool Exhaustion Test 17 | series-pool-exhaustion |
 
 > **중요**: 각 쌍은 하나의 테스트에서만 사용 (병렬 충돌 방지)
 
@@ -324,6 +331,7 @@ button.fbt.series-forfeit           # 시리즈 forfeit 버튼 (시리즈 게임
 .series-finished__result-banner            # Victory!/Defeat 배너
 .series-finished__result-banner.victory    # 승리 배너
 .series-finished__result-banner.defeat     # 패배 배너
+.series-finished__result-banner.draw       # 무승부 배너 (노란색)
 .series-finished__players                  # 플레이어 영역
 .series-finished__score                    # 플레이어 점수
 .series-finished__vs                       # "vs" 구분자
