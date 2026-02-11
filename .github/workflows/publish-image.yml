@@ -23,11 +23,8 @@ on:
           - 'linux/amd64'
           - 'linux/arm64'
   push:
-    paths:
-      - '.github/workflows/publish-image.yml'
-      - 'conf/mono.Caddyfile'
-      - 'conf/mono.conf'
-      - 'docker/mono.Dockerfile'
+    tags:
+      - 'v*'
 
 jobs:
   build-and-publish:
