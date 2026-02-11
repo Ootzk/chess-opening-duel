@@ -1,6 +1,13 @@
 name: Docker Compose Build
 
-on: [push, pull_request]
+on:
+  pull_request:
+    paths:
+      - 'docker/**'
+      - 'conf/**'
+      - 'compose.yml'
+      - 'lila-docker'
+      - 'scripts/**'
 
 jobs:
   build:

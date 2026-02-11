@@ -1,4 +1,4 @@
-:8080
+{$CADDY_SITE_ADDRESS::8080}
 
 handle_errors 502 {
 	root * /static/errors

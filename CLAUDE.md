@@ -5,9 +5,107 @@
 lichess 오픈소스 기반의 커스텀 체스 게임. 특정 오프닝으로만 승리 가능한 1:1 대결 모드.
 
 ### 게임 컨셉
-- 1v1 매칭 → 오프닝 밴픽 → 5판 3선승
+- 1v1 매칭 → 오프닝 밴픽 → **선착 2.5점 (서든데스 포함)**
 - 정해진 오프닝 풀에서 각자 밴 → 남은 오프닝으로 대결
 - 기본 체스 룰 유지, 승리 조건만 커스텀
+
+### 점수 시스템
+클래식 체스 점수 체계 사용:
+- **승리**: 1점, **무승부**: 0.5점, **패배**: 0점
+- 2.5점 이상 획득하고 상대보다 높은 점수를 가진 플레이어가 시리즈 승자
+- 5경기 내 승자 미결정 시 (예: 2.5-2.5 동점) **서든데스** 진행
+
+### 밴픽 플로우
+1. **Pick Phase** (30초): 10개 오프닝 중 정확히 5개 선택 (미달 시 Confirm 비활성)
+   - 타임아웃: 현재 선택 + 랜덤으로 5개 채워서 자동 확정
+2. **Ban Phase** (30초): 상대 픽 중 정확히 2개 밴 (미달 시 Confirm 비활성)
+   - 타임아웃: 현재 선택 + 랜덤으로 2개 채워서 자동 확정
+3. **Game 1**: 양측 남은 픽 6개 중 랜덤 (밴된 오프닝은 완전 제거)
+4. **Game 2~**: 전 경기 패자가 자신의 남은 픽 중 선택 (무승부 시 남은 픽 풀에서 랜덤)
+
+#### Phase 상태
+
+- `Picking` (10): 양측 오프닝 선택
+- `Banning` (20): 양측 밴 선택
+- `RandomSelecting` (25): Game 1 오프닝 랜덤 선택 중 (카운트다운)
+- `Playing` (30): 게임 진행 중
+- `Selecting` (35): 패자가 다음 오프닝 선택 중
+- `Finished` (40): 시리즈 종료
+
+#### 플로우 다이어그램
+
+**Phase 전환 (메인 플로우):**
+```mermaid
+flowchart LR
+    subgraph Pre["Pre-game"]
+        PICK[Picking<br/>30s] -->|confirm| BAN[Banning<br/>30s]
+    end
+
+    subgraph Game["Game Loop"]
+        RS[RandomSelecting<br/>5s] --> PLAY[Playing]
+        PLAY -->|draw| RS
+        PLAY -->|winner| SEL[Selecting<br/>30s]
+        SEL --> PLAY
+    end
+
+    BAN -->|startGame1| RS
+    PLAY -->|series done| FIN[Finished]
+
+    PICK -.->|timeout+disconnect| ABORT[Aborted]
+    BAN -.->|timeout+disconnect| ABORT
+```
+
+**타임아웃 처리 (서버 스케줄러):**
+```mermaid
+flowchart TD
+    TIMEOUT[Timeout fires] --> CHECK{timeLeft > 1?}
+    CHECK -->|Yes| RESCHED[Reschedule remaining]
+    CHECK -->|No| DISC{Disconnected?}
+    DISC -->|Yes| ABORT[Abort series]
+    DISC -->|No| AUTO[Auto-fill + confirm]
+    AUTO --> NEXT[Next phase]
+```
+
+**주요 이벤트:**
+
+| 이벤트 | 발생 시점 | Env.scala 핸들러 |
+|--------|----------|------------------|
+| `SeriesCreated` | Series 생성 | `timeouts.schedule()` |
+| `SeriesPhaseChanged` | Phase 전환 | Banning: `schedule()`, 나머지: `cancel()` |
+| `SeriesAborted` | Timeout + Disconnected | - |
+| `SeriesEnterSelecting` | Game 2+ 승패 결정 | 클라이언트 리다이렉트 |
+| `SeriesDrawRandomSelecting` | Game 2+ 무승부 | 클라이언트 리다이렉트 |
+| `SeriesFinished` | 시리즈 종료 | - |
+
+#### API 엔드포인트
+| Method | Path | 설명 |
+|--------|------|------|
+| GET | `/series/{id}` | 시리즈 상태 조회 (JSON) |
+| GET | `/series/{id}/pick` | 밴픽 페이지 (HTML) |
+| POST | `/series/{id}/setPicks` | 픽 설정 |
+| POST | `/series/{id}/confirmPicks` | 픽 확정 |
+| POST | `/series/{id}/timeoutPicks` | 픽 타임아웃 (랜덤 채우기) |
+| POST | `/series/{id}/setBans` | 밴 설정 |
+| POST | `/series/{id}/confirmBans` | 밴 확정 |
+| POST | `/series/{id}/timeoutBans` | 밴 타임아웃 (랜덤 채우기) |
+| POST | `/series/{id}/selectNextOpening` | 다음 오프닝 선택 (패자용) |
+
+#### 핵심 파일
+```
+repos/lila/modules/series/src/main/
+├── Series.scala          # 시리즈 모델 (Phase, maxPicks, maxBans 등)
+├── SeriesPlayer.scala    # 플레이어 모델 (confirmedPicks, confirmedBans)
+├── SeriesOpening.scala   # 오프닝 모델 (source, ownerIndex, usedInRound)
+├── SeriesGame.scala      # 게임 결과 모델
+├── SeriesApi.scala       # 비즈니스 로직 (타임아웃 처리 포함)
+├── SeriesJson.scala      # JSON 직렬화
+└── OpeningPresets.scala  # 10개 오프닝 프리셋 정의
+
+repos/lila/ui/series/
+├── src/ctrl.ts           # 프론트엔드 컨트롤러
+├── src/view.ts           # Snabbdom 뷰
+└── css/_pick.scss        # 스타일
+```
 
 ## 저장소 구조
 
@@ -118,6 +216,10 @@ docker compose exec lila ./lila.sh playRoutes
 ./lila-docker db
 ```
 
+### E2E 테스트 (Playwright)
+
+→ [tests/e2e/README.md](tests/e2e/README.md) 참조
+
 ## 구현 계획
 
 ### Phase 1: 환경 설정 ✅
@@ -133,13 +235,13 @@ docker compose exec lila ./lila.sh playRoutes
 ### Phase 3: 백엔드 구현 (진행중)
 - [ ] OpeningChallenge variant 생성 (scalachess)
 - [ ] 오프닝 검증 로직
-- [x] Match 모델 (5판 3선승) - v1.1.0
-- [ ] 랜덤 오프닝 프리셋 - v1.3.0 (계획)
-- [ ] 밴픽 시스템
+- [x] Match 모델 (선착 2.5점, 서든데스) - v1.1.0
+- [x] 랜덤 오프닝 프리셋 - v1.3.0
+- [ ] 밴픽 시스템 - v1.4.0 (계획)
 
 ### Phase 4: UI 구현 (진행중)
 - [ ] 불필요한 UI 제거 (퍼즐, 대회, 학습 등)
-- [ ] 오프닝 밴픽 UI
+- [ ] 오프닝 밴픽 UI - v1.4.0 (계획)
 - [x] 매치 진행 상황 표시 - v1.2.0
 - [ ] 브랜딩 변경
 
@@ -147,9 +249,83 @@ docker compose exec lila ./lila.sh playRoutes
 - [ ] Docker 이미지 빌드
 - [ ] 클라우드 배포 (Railway/Fly.io)
 
+### TODO: WebSocket 기반 Disconnect 감지
+
+현재 시리즈 밴/픽/선택 페이지는 HTTP 폴링으로 disconnect를 감지함:
+- `GET /series/{id}` 호출 시 `lastSeenAt` 업데이트
+- 10초 이상 미접속 시 `isDisconnected = true`
+
+**문제점:**
+- 테스트 모드에서 `phaseTimeout(5초) < disconnectTimeout(10초)`
+- 타임아웃 시점에 플레이어가 아직 "online"으로 간주됨
+- 게임 페이지는 WebSocket의 `gone`/`goneIn` 이벤트로 실시간 감지
+
+**해결 방안 (고려중):**
+- lila-ws에 시리즈용 WebSocket 채널 추가
+- 밴/픽/선택 phase에서도 게임처럼 실시간 disconnect 감지
+- E2E 테스트의 Disconnect Abort 케이스 활성화
+
 ## 릴리스 내역
 
-### v1.3.0 - Random Opening Presets (계획)
+### v1.4.0 - Ban/Pick System (계획)
+
+매치 시작 전 밴픽 시스템으로 전략적 오프닝 선택.
+
+**밴픽 플로우:**
+```
+[Pre-game Phase - 매치 시작 전]
+
+1. Pick Phase (30초)
+   - 10개 프리셋 중 최대 5개 토글 선택
+   - 두 플레이어 동시 진행 (턴 없음)
+   - 5개 미만 선택 시 랜덤으로 채움
+
+2. Ban Phase (30초)
+   - 상대의 픽 중 최대 2개 토글 선택
+   - 두 플레이어 동시 진행
+   - 2개 미만 선택 시 랜덤으로 채움
+   → 결과: 각자 3개 오프닝 보유 (밴된 오프닝은 완전 제거)
+
+[Game 1]
+- 양측 남은 픽 6개 중 랜덤 선택
+
+[Game 2~]
+- 전 경기 패자가 자기 픽 오프닝 선택 (별도 화면, 30초)
+- 타임아웃 또는 무승부 시: 남은 픽 풀에서 랜덤
+```
+
+**구현 범위:**
+
+| 영역 | 작업 |
+|------|------|
+| Match 모델 | picks, bans, phase 필드 추가 |
+| 밴픽 API | `/match/{id}/pick`, `/match/{id}/ban` |
+| 밴픽 UI | 별도 페이지 `/match/{id}/pick`에서 오프닝 선택/밴 |
+| 게임 시작 로직 | 랜덤/패자 선택 분기 처리 |
+| 오프닝 선택 UI | 패자가 다음 게임 오프닝 선택 |
+| WebSocket | 실시간 밴픽 상태 동기화 |
+
+**예상 데이터 구조:**
+```scala
+case class Match(
+  // 기존 필드...
+  phase: Phase,  // Picking | Banning | Playing | Finished
+  picks: Picks,  // { white: List[Opening], black: List[Opening] }
+  bans: Bans,    // { white: List[Opening], black: List[Opening] }
+)
+```
+
+**생성/수정 예정 파일:**
+```
+repos/lila/modules/match/src/main/Match.scala       # phase, picks, bans 추가
+repos/lila/modules/match/src/main/MatchApi.scala    # 밴픽 로직
+repos/lila/app/controllers/Match.scala              # 밴픽 API (신규)
+repos/lila/app/views/match/pick.scala               # 밴픽 UI (신규)
+repos/lila/ui/match/                                # 밴픽 프론트엔드 (신규)
+repos/lila/conf/routes                              # 라우트 추가
+```
+
+### v1.3.0 - Random Opening Presets
 - 각 게임이 랜덤 오프닝 프리셋(FEN)으로 시작
 - 10개 오프닝 풀에서 매치당 5개 선택 (중복 없음)
 - FromPosition variant 사용
@@ -180,7 +356,7 @@ docker compose exec lila ./lila.sh playRoutes
 ### v1.1.0 - Match 모듈
 - Match 모델 및 MongoDB 컬렉션
 - Challenge에 matchType 필드 추가
-- 5판 3선승 자동 다음 게임 생성
+- 선착 2.5점 자동 다음 게임 생성 (서든데스 지원)
 - Round API에 match 정보 포함
 
 ### v1.0.0 - 초기 설정
@@ -193,7 +369,7 @@ docker compose exec lila ./lila.sh playRoutes
 ```
 repos/lila/modules/match/
 ├── src/main/
-│   ├── Match.scala           # Match 모델 (5판 3선승)
+│   ├── Match.scala           # Match 모델 (선착 2.5점)
 │   ├── MatchApi.scala        # 비즈니스 로직
 │   ├── MatchRepo.scala       # MongoDB 저장소
 │   └── Env.scala             # 의존성 주입
@@ -246,6 +422,15 @@ repos/lila/modules/openingduel/                                 # 밴픽 로직
 ## 테스트 계정
 
 Full 모드 설정시 자동 생성됨. 기본 비밀번호: `password`
+
+### TODO: 특수 계정 roles과 Opening Duel 호환성
+
+DB 리셋 시 일부 계정에 랜덤으로 특수 roles (admin, teacher, coach 등)이 부여됨.
+특수 roles이 있는 계정은 Opening Duel 시리즈 생성/밴픽 플로우가 정상 동작하지 않을 수 있음.
+E2E 테스트에서 `kenneth`, `mateo` 등 특수 계정 사용 시 밴픽 Phase 전환 실패 확인됨.
+
+- [ ] 원인 조사: 어떤 role이 시리즈 플로우를 차단하는지 파악
+- [ ] 수정: 특수 계정도 Opening Duel을 정상 이용할 수 있도록 처리
 
 ## 버전 관리 정책
 
@@ -355,6 +540,34 @@ gh release create v{version} --target main --generate-notes --notes "## Summary
 - [Lichess GitHub](https://github.com/lichess-org)
 - [lila-docker 문서](https://github.com/lichess-org/lila-docker)
 - [Chessground 데모](http://localhost:8090/demo.html)
+
+## Claude 개발 가이드라인
+
+### 로컬 정리 절차 (PR 머지 후)
+```bash
+git fetch --prune                              # 원격 추적 브랜치 정리
+git switch release/{version}                   # release 브랜치로 전환
+git pull                                       # 최신 변경사항 pull
+git branch -D feature/{name}                   # 로컬 feature 브랜치 삭제
+git submodule update repos/lila                # submodule 동기화
+```
+
+### 커밋 분리 정책
+- **정책 구현 (기능)** 과 **버그픽스**는 별도 커밋으로 분리
+- lila에서 먼저 커밋/푸시 → 메인 repo에서 submodule 변경사항 커밋
+
+### 커밋 전 테스트
+- **매 커밋 직전** 반드시 유저에게 테스트 검수 요청
+- 테스트 통과 확인 후 커밋 진행
+
+### 코드 변경 후 재시작
+- Scala 변경: `./lila-docker lila restart`
+- DB 리셋 필요시: `./lila-docker db`
+- 둘 다 필요시: `./lila-docker db && ./lila-docker lila restart`
+
+### UI 빌드
+- 특정 모듈만 빌드하지 말고 항상 전체 빌드
+- `./lila-docker ui` 또는 `./lila-docker ui --watch`
 
 ## 주의사항
 

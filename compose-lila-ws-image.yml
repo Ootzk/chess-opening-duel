@@ -1,6 +1,6 @@
 services:
   lila_ws:
-    image: ghcr.io/lichess-org/lila-ws:latest
+    image: ghcr.io/ootzk/chess-opening-duel-lila-ws:latest
     platform: linux/amd64
     restart: unless-stopped
     environment:

@@ -22,3 +22,15 @@ docker/assets/*.webp
 .bsp
 .scala-build
 settings.json
+
+# Claude Code
+.claude
+
+# E2E Tests
+tests/e2e/node_modules
+tests/e2e/dist
+tests/e2e/test-results
+tests/e2e/playwright-report
+tests/e2e/.playwright
+tests/e2e/.auth
+test-results

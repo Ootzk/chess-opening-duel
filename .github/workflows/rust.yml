@@ -1,6 +1,9 @@
 name: Rust
 
-on: [push, pull_request]
+on:
+  pull_request:
+    paths:
+      - 'command/**'
 
 env:
   CARGO_TERM_COLOR: always
