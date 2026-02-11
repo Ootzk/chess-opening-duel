@@ -77,13 +77,17 @@ services:
       - base
 
   mono:
-    image: ghcr.io/lichess-org/lila-docker:main
+    image: ghcr.io/ootzk/chess-opening-duel:${MONO_TAG:-latest}
     restart: unless-stopped
     ports:
       - 8080:8080
     environment:
       - LILA_DOMAIN=${LILA_DOMAIN:-localhost:8080}
       - LILA_URL=${LILA_URL:-http://localhost:8080}
+      - CADDY_SITE_ADDRESS=${CADDY_SITE_ADDRESS:-}
+    volumes:
+      - mongo-data:/seeded
+      - caddy-data:/data
     profiles:
       - quick
 
@@ -308,6 +312,10 @@ services:
       - DOCKER_INFLUXDB_INIT_BUCKET=kamon
     profiles:
       - monitoring
+
+volumes:
+  mongo-data:
+  caddy-data:
 
 networks:
   default:
