@@ -55,6 +55,12 @@ const users = [
   // Pair 17: dmitry + milena (pool exhaustion → series draw)
   { username: 'dmitry', password: 'password', file: '.auth/dmitry.json' },
   { username: 'milena', password: 'password', file: '.auth/milena.json' },
+  // Pair 18: yaroslava + ekaterina (resting phase - both confirm)
+  { username: 'yaroslava', password: 'password', file: '.auth/yaroslava.json' },
+  { username: 'ekaterina', password: 'password', file: '.auth/ekaterina.json' },
+  // Pair 19: margarita + yevgeny (resting phase - timeout)
+  { username: 'margarita', password: 'password', file: '.auth/margarita.json' },
+  { username: 'yevgeny', password: 'password', file: '.auth/yevgeny.json' },
 ];
 
 async function loginWithRetry(
