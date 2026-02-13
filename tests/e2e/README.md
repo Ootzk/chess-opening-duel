@@ -27,12 +27,13 @@ tests/e2e/
 │   ├── scenarios.ts       # 테스트 시나리오 매트릭스 (PickBanBehavior, testScenarios)
 │   └── series.ts          # 시리즈 조작 헬퍼 (selectOpenings, confirm 등)
 └── specs/
-    ├── series-banpick.spec.ts     # 밴픽 플로우 테스트 (Test 0~6)
-    ├── series-countdown.spec.ts   # Countdown 테스트 (Test 12~13)
-    ├── series-disconnect.spec.ts  # Disconnect/Abort 테스트 (Test 7~8)
-    ├── series-forfeit.spec.ts          # Series Forfeit 테스트 (Test 9~10)
-    ├── series-finished.spec.ts         # Finished Page + Rematch 테스트 (Test 11)
-    ├── series-pool-exhaustion.spec.ts  # Pool Exhaustion → Draw 테스트 (Test 17)
+    ├── opening-pool.spec.ts           # Opening Pool 페이지 테스트 (Test 20)
+    ├── series-banpick.spec.ts         # 밴픽 플로우 테스트 (Test 0~6)
+    ├── series-countdown.spec.ts       # Countdown 테스트 (Test 12~13)
+    ├── series-disconnect.spec.ts      # Disconnect/Abort 테스트 (Test 7~8)
+    ├── series-forfeit.spec.ts         # Series Forfeit 테스트 (Test 9~10)
+    ├── series-finished.spec.ts        # Finished Page + Rematch 테스트 (Test 11)
+    ├── series-pool-exhaustion.spec.ts # Pool Exhaustion → Draw 테스트 (Test 17)
     └── series-resting.spec.ts         # Resting Phase 테스트 (Test 18~19)
 ```
 
@@ -98,6 +99,7 @@ const users = [
 | 17 | dmitry | milena | ✅/✅ | ✅/✅ | ½ - ½ - ½ - ½ - ½ - ½ | 6 | 3-3 draw | 풀 소진 → 시리즈 Draw |
 | 18 | yaroslava | ekaterina | ✅/✅ | ✅/✅ | P2 resign + resting | 2 | - | Resting: confirm→cancel→re-confirm→countdown |
 | 19 | margarita | yevgeny | ✅/✅ | ✅/✅ | P1 resign + resting | 2 | - | Resting: confirm→cancel→30s timeout |
+| 20 | elena | - | - | - | - | - | - | Opening Pool 페이지 접근 + 렌더링 확인 |
 
 ## Pick/Ban 행동 타입
 
