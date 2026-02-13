@@ -395,7 +395,7 @@ export async function createSeriesChallenge(
   await expect(gameSetup).toBeVisible({ timeout: 5000 });
 
   // Select "Real time" mode (click the tab)
-  const realTimeTab = player1.locator('.game-setup .tabs-horiz span:has-text("Real time")');
+  const realTimeTab = player1.locator('.game-setup .tabs-horiz button:has-text("Real time")');
   await realTimeTab.first().click();
 
   // Wait for tab content to update
@@ -421,7 +421,7 @@ export async function createSeriesChallenge(
 
   // Search for opponent and invite them
   // Look for the search textbox in "Or invite a Lichess user" section
-  const searchBox = player1.locator('input[placeholder="Search"], input[type="text"]').last();
+  const searchBox = player1.locator('input.friend-autocomplete');
   const searchVisible = await searchBox.isVisible({ timeout: 3000 }).catch(() => false);
 
   if (searchVisible) {
