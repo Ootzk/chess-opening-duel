@@ -341,8 +341,8 @@ test.describe('Test 14: aaron vs jacob (Game disconnect → forfeit)', () => {
 
 // ===== Test 15: Disconnect During Game 3 After 0-2 Score → Series Forfeit =====
 test.describe('Test 15: svetlana vs qing (0-2 then game 3 disconnect → forfeit)', () => {
-  // 2 games + selecting phases + disconnect detection ~60s + buffer
-  test.describe.configure({ timeout: 240000 });
+  // 2 games + resting phases + selecting phases + disconnect detection ~60s + buffer
+  test.describe.configure({ timeout: 260000 });
 
   const pairUsers = ['svetlana', 'qing'];
   test.beforeAll(() => cleanupPairData(pairUsers));

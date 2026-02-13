@@ -60,6 +60,12 @@ export const users = {
   // Pair 17: Pool exhaustion → series draw
   dmitry: { username: 'dmitry', password: 'password', storageState: '.auth/dmitry.json' },
   milena: { username: 'milena', password: 'password', storageState: '.auth/milena.json' },
+  // Pair 18: Resting phase - both confirm quickly
+  yaroslava: { username: 'yaroslava', password: 'password', storageState: '.auth/yaroslava.json' },
+  ekaterina: { username: 'ekaterina', password: 'password', storageState: '.auth/ekaterina.json' },
+  // Pair 19: Resting phase - timeout (no confirm)
+  margarita: { username: 'margarita', password: 'password', storageState: '.auth/margarita.json' },
+  yevgeny: { username: 'yevgeny', password: 'password', storageState: '.auth/yevgeny.json' },
 } as const;
 
 /**

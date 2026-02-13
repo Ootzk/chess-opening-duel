@@ -36,6 +36,15 @@ export const selectors = {
 
   // Countdown text (3-second delay after both confirm)
   countdownText: '.series-pick__countdown-text',
+
+  // Resting phase (between games, shown on round game page)
+  restingFollowUp: '.follow-up.series-rest',
+  restingConfirmBtn: 'button.button-green.series-rest__confirm',
+  restingCancelBtn: 'button.button-metal.series-rest__cancel',
+  restingTimer: '.series-rest__timer',
+  restingOpponentStatus: '.series-rest__opponent-status',
+  restingOpponentReady: '.series-rest__opponent-status.ready',
+  restingCountdown: '.series-rest__timer:has-text("Game starting in")',
 };
 
 /**
@@ -287,6 +296,44 @@ export async function verifyCountdownDecrements(page: Page, timeout = 10000): Pr
   }
 
   return { initial, after };
+}
+
+// ===== Resting Phase Helpers =====
+
+/**
+ * Click "Next Game" button in the Resting phase (shown on game page after game ends).
+ * Waits for the button to appear, then clicks it.
+ */
+export async function confirmNextInResting(page: Page, timeout = 15000): Promise<void> {
+  const nextBtn = page.locator(selectors.restingConfirmBtn);
+  await expect(nextBtn).toBeVisible({ timeout });
+  await nextBtn.click();
+}
+
+/**
+ * Click "Cancel" button in the Resting phase (revoke a previous "Next Game" confirmation).
+ */
+export async function cancelNextInResting(page: Page, timeout = 5000): Promise<void> {
+  const cancelBtn = page.locator(selectors.restingCancelBtn);
+  await expect(cancelBtn).toBeVisible({ timeout });
+  await cancelBtn.click();
+}
+
+/**
+ * Wait for the Resting phase UI to appear on the game page.
+ */
+export async function waitForRestingUI(page: Page, timeout = 15000): Promise<void> {
+  await expect(page.locator(selectors.restingFollowUp)).toBeVisible({ timeout });
+}
+
+/**
+ * Get the resting timer value (seconds remaining).
+ */
+export async function getRestingTimeLeft(page: Page): Promise<number> {
+  const timer = page.locator(selectors.restingTimer);
+  const text = await timer.textContent() || '';
+  const match = text.match(/(\d+)/);
+  return match ? parseInt(match[1], 10) : NaN;
 }
 
 // ===== Series Creation via Challenge Flow =====
@@ -1188,34 +1235,38 @@ export async function isSeriesAborted(
 /**
  * Wait for next game to start after a game ends
  *
- * Phase transitions:
- * - PLAY →|winner| SEL (Selecting: 패자가 자기 남은 픽에서 선택)
- * - PLAY →|draw| RS (RandomSelecting: 남은 픽 풀에서 랜덤, 5초 카운트다운)
- * - PLAY →|series done| FIN (시리즈 종료, 리다이렉트 없음)
+ * Phase transitions (with Resting):
+ * - PLAY → RESTING (30s) → |winner| SEL (Selecting)
+ * - PLAY → RESTING (30s) → |draw| RS (RandomSelecting)
+ * - PLAY →|series done| FIN (no resting)
  *
- * UI classes:
- * - .series-pick.random-selecting: RandomSelecting (5초 후 자동 리다이렉트)
- * - Selecting: 양측 동일한 그리드 표시 (패자만 클릭 가능, 승자는 disabled)
- *   - 패자: confirm 후 3초 cancel 윈도우 → WS phase 이벤트로 게임 리다이렉트
- *   - 승자: 버튼 없음, WS phase 이벤트로 게임 리다이렉트 대기
+ * Resting phase:
+ * - Shown on the game page as .follow-up.series-rest
+ * - "Next Game" button → both confirm → 3s countdown → phase transition
+ * - 30s timeout → auto-transition (no confirm needed)
+ *
+ * @param skipResting - If true, don't click "Next Game" (let timeout handle it)
  */
 export async function waitForNextGame(
   player1: Page,
   player2: Page,
   _loserPage: Page | null,  // Deprecated, kept for API compatibility
   previousGameId?: string,
-  timeout = 30000,
+  timeout = 45000,
   screenshot?: ScreenshotFn,
-  gameNum?: number
+  gameNum?: number,
+  skipResting = false
 ): Promise<void> {
-  console.log(`[waitForNextGame] previousGameId=${previousGameId}, starting...`);
+  console.log(`[waitForNextGame] previousGameId=${previousGameId}, skipResting=${skipResting}, starting...`);
 
   const startTime = Date.now();
   let hasSelected = false; // 패자가 오프닝을 선택했는지 추적
-  let screenshotTaken = { selecting: false, randomSelecting: false }; // prevent duplicate screenshots
+  let screenshotTaken = { selecting: false, randomSelecting: false, resting: false }; // prevent duplicate screenshots
 
   // Helper: 한 플레이어의 상태를 체크하고 필요시 행동
   const handlePlayer = async (page: Page, label: string, otherPage: Page): Promise<void> => {
+    let restingConfirmed = false;
+
     while (Date.now() - startTime < timeout) {
       const path = new URL(page.url()).pathname;
 
@@ -1224,6 +1275,26 @@ export async function waitForNextGame(
       if (gameMatch && gameMatch[1] !== previousGameId) {
         console.log(`[waitForNextGame] ${label} arrived at game: ${gameMatch[1]}`);
         return;
+      }
+
+      // Resting phase: 이전 게임 페이지에서 Rest UI 표시
+      if (gameMatch && gameMatch[1] === previousGameId && !restingConfirmed) {
+        const restNextBtn = page.locator(selectors.restingConfirmBtn);
+        const isRestVisible = await restNextBtn.isVisible().catch(() => false);
+        if (isRestVisible) {
+          // Screenshot: resting UI
+          if (screenshot && !screenshotTaken.resting) {
+            screenshotTaken.resting = true;
+            await screenshot(`game${gameNum}-resting`, page);
+          }
+          if (!skipResting) {
+            console.log(`[waitForNextGame] ${label} clicking "Next Game" in Resting phase`);
+            await restNextBtn.click();
+            restingConfirmed = true;
+          }
+          await page.waitForTimeout(500);
+          continue;
+        }
       }
 
       // Pick 페이지에 있을 때
@@ -1521,9 +1592,10 @@ export async function executeSeriesResult(
     }
 
     // Wait for next game if not the last game
+    // Includes resting phase (~5s: both confirm + 3s countdown) + selecting/randomSelecting
     if (!isLastGame) {
       await player1.waitForTimeout(500);
-      await waitForNextGame(player1, player2, null, lastGameId, 30000, screenshot, gameNum + 1);
+      await waitForNextGame(player1, player2, null, lastGameId, 45000, screenshot, gameNum + 1);
     }
   }
 

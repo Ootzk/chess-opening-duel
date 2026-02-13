@@ -32,7 +32,8 @@ tests/e2e/
     ├── series-disconnect.spec.ts  # Disconnect/Abort 테스트 (Test 7~8)
     ├── series-forfeit.spec.ts          # Series Forfeit 테스트 (Test 9~10)
     ├── series-finished.spec.ts         # Finished Page + Rematch 테스트 (Test 11)
-    └── series-pool-exhaustion.spec.ts  # Pool Exhaustion → Draw 테스트 (Test 17)
+    ├── series-pool-exhaustion.spec.ts  # Pool Exhaustion → Draw 테스트 (Test 17)
+    └── series-resting.spec.ts         # Resting Phase 테스트 (Test 18~19)
 ```
 
 ## 테스트 계정 생성
@@ -95,6 +96,8 @@ const users = [
 | 14 | aaron | jacob | ✅/✅ | ✅/✅ | disconnect(game) | 1 | forfeit | 게임 중 disconnect → forfeit |
 | 15 | svetlana | qing | ✅/✅ | ✅/✅ | 0 - 0 + disconnect | 3 | forfeit | 0-2 후 game 3 disconnect → forfeit |
 | 17 | dmitry | milena | ✅/✅ | ✅/✅ | ½ - ½ - ½ - ½ - ½ - ½ | 6 | 3-3 draw | 풀 소진 → 시리즈 Draw |
+| 18 | yaroslava | ekaterina | ✅/✅ | ✅/✅ | P2 resign + resting | 2 | - | Resting: confirm→cancel→re-confirm→countdown |
+| 19 | margarita | yevgeny | ✅/✅ | ✅/✅ | P1 resign + resting | 2 | - | Resting: confirm→cancel→30s timeout |
 
 ## Pick/Ban 행동 타입
 
@@ -226,6 +229,8 @@ test.describe('Test 0: elena vs hans', () => {
 | 15 | aaron | jacob | Game Disconnect Test 14 | series-disconnect |
 | 16 | svetlana | qing | Game Disconnect Test 15 | series-disconnect |
 | 17 | dmitry | milena | Pool Exhaustion Test 17 | series-pool-exhaustion |
+| 18 | yaroslava | ekaterina | Resting confirm Test 18 | series-resting |
+| 19 | margarita | yevgeny | Resting timeout Test 19 | series-resting |
 
 > **중요**: 각 쌍은 하나의 테스트에서만 사용 (병렬 충돌 방지)
 
@@ -282,6 +287,15 @@ test.describe('Test 0: elena vs hans', () => {
 | `waitForCountdownGone(page, timeout?)` | 카운트다운 텍스트 사라짐 대기 |
 | `verifyCountdownDecrements(page, timeout?)` | 카운트다운 감소 검증. `{ initial, after }` 반환 |
 
+### Resting Phase 관련
+
+| 함수 | 설명 |
+|:---|:---|
+| `waitForRestingUI(page, timeout?)` | Resting UI (`.follow-up.series-rest`) 표시 대기 |
+| `confirmNextInResting(page, timeout?)` | "Confirm" 버튼 클릭 (Next Game 확인) |
+| `cancelNextInResting(page, timeout?)` | "Cancel" 버튼 클릭 (확인 취소) |
+| `getRestingTimeLeft(page)` | 타이머에서 남은 초 파싱 |
+
 ### Finished Page 관련
 
 | 함수 | 설명 |
@@ -309,6 +323,18 @@ test.describe('Test 0: elena vs hans', () => {
 .series-pick.selecting-waiting      # Selecting에서 패자 대기 화면
 .series-pick__opponent-status       # 상대 상태 (.ready / .waiting / .disconnected)
 .series-pick__countdown-text       # 카운트다운 텍스트 ("Ban phase starting in 3..." / "Game N starting in 3...")
+```
+
+### Resting Phase - 게임 페이지 (`selectors`)
+
+```
+.follow-up.series-rest                          # Resting UI 컨테이너 (게임 종료 위젯 내)
+button.button-green.series-rest__confirm        # "Confirm" 버튼 (Next Game)
+button.button-metal.series-rest__cancel         # "Cancel" 버튼 (확인 취소)
+.series-rest__timer                             # 타이머 ("Next game starts in 28")
+.series-rest__opponent-status                   # 상대 상태 ("Waiting for opponent...")
+.series-rest__opponent-status.ready             # 상대 Ready ("Opponent is Ready!")
+.series-rest__timer:has-text("Game starting in") # 카운트다운 ("Game starting in 3...")
 ```
 
 ### 게임 페이지 (`gameSelectors`)
