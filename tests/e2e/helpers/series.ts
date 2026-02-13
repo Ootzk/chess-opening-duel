@@ -311,6 +311,15 @@ export async function confirmNextInResting(page: Page, timeout = 15000): Promise
 }
 
 /**
+ * Click "Cancel" button in the Resting phase (revoke a previous "Next Game" confirmation).
+ */
+export async function cancelNextInResting(page: Page, timeout = 5000): Promise<void> {
+  const cancelBtn = page.locator(selectors.restingCancelBtn);
+  await expect(cancelBtn).toBeVisible({ timeout });
+  await cancelBtn.click();
+}
+
+/**
  * Wait for the Resting phase UI to appear on the game page.
  */
 export async function waitForRestingUI(page: Page, timeout = 15000): Promise<void> {

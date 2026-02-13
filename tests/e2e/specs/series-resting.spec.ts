@@ -8,6 +8,7 @@ import {
   waitForNextGame,
   waitForRestingUI,
   confirmNextInResting,
+  cancelNextInResting,
   getRestingTimeLeft,
   isSeriesFinished,
   waitForFinishedPage,
@@ -97,23 +98,44 @@ test.describe('Test 18: yaroslava vs ekaterina (Resting: both confirm)', () => {
         await expect(player1.locator(selectors.restingOpponentStatus)).toBeVisible();
       });
 
-      // Step 4: P1 clicks "Next Game"
-      await test.step('P1 confirms Next Game', async () => {
+      // Step 4: P1 confirms → then cancels → verify opponent status reverts
+      await test.step('P1 confirms, then cancels (cancel flow)', async () => {
+        // P1 clicks "Confirm"
         await confirmNextInResting(player1);
         await takeScreenshot('p1-confirmed-next', player1);
 
-        // P1 should now see Cancel button instead of Next Game
+        // P1 should now see Cancel button
         await expect(player1.locator(selectors.restingCancelBtn)).toBeVisible({ timeout: 3000 });
 
         // P2 should see "Opponent is Ready!"
         await expect(player2.locator(selectors.restingOpponentReady)).toBeVisible({ timeout: 5000 });
         await takeScreenshot('p2-sees-opponent-ready', player2);
+
+        // P1 clicks "Cancel" to revoke
+        await cancelNextInResting(player1);
+        await takeScreenshot('p1-cancelled', player1);
+
+        // P1 should see "Confirm" button again (not Cancel)
+        await expect(player1.locator(selectors.restingConfirmBtn)).toBeVisible({ timeout: 3000 });
+
+        // P2 should revert to "Waiting for opponent..." (not Ready)
+        await expect(player2.locator(selectors.restingOpponentReady)).not.toBeVisible({ timeout: 5000 });
+        await expect(player2.locator(selectors.restingOpponentStatus)).toBeVisible();
+        await takeScreenshot('p2-opponent-not-ready-after-cancel', player2);
       });
 
-      // Step 5: P2 clicks "Next Game" → both confirmed → countdown
-      await test.step('P2 confirms Next Game → countdown starts', async () => {
+      // Step 5: P1 re-confirms → P2 confirms → countdown
+      await test.step('P1 re-confirms, P2 confirms → countdown starts', async () => {
+        // P1 confirms again
+        await confirmNextInResting(player1);
+        await expect(player1.locator(selectors.restingCancelBtn)).toBeVisible({ timeout: 3000 });
+
+        // P2 sees "Opponent is Ready!" again
+        await expect(player2.locator(selectors.restingOpponentReady)).toBeVisible({ timeout: 5000 });
+
+        // P2 confirms
         await confirmNextInResting(player2);
-        await takeScreenshot('p2-confirmed-next', player2);
+        await takeScreenshot('both-confirmed', player2);
 
         // Countdown should appear on both sides
         await expect(player1.locator(selectors.restingCountdown)).toBeVisible({ timeout: 5000 });
@@ -123,7 +145,7 @@ test.describe('Test 18: yaroslava vs ekaterina (Resting: both confirm)', () => {
         await takeScreenshot('countdown-p2', player2);
       });
 
-      // Step 6: Wait for transition to next game
+      // Step 6: Wait for transition to next game (after countdown)
       await test.step('Transition to next game (Selecting or RandomSelecting → game)', async () => {
         // waitForNextGame handles the redirect from resting → pick page → game
         // Since we already confirmed, it should just wait for the redirect
@@ -201,7 +223,28 @@ test.describe('Test 19: margarita vs yevgeny (Resting: timeout auto-transition)'
         await takeScreenshot('resting-ui-p2', player2);
       });
 
-      // Step 4: Wait for timeout (don't click anything) → auto-transition
+      // Step 4: P1 confirms then cancels (verify cancel works before timeout)
+      await test.step('P1 confirms then cancels → opponent status reverts', async () => {
+        // P1 clicks "Confirm"
+        await confirmNextInResting(player1);
+
+        // P1 sees Cancel button, P2 sees "Opponent is Ready!"
+        await expect(player1.locator(selectors.restingCancelBtn)).toBeVisible({ timeout: 3000 });
+        await expect(player2.locator(selectors.restingOpponentReady)).toBeVisible({ timeout: 5000 });
+        await takeScreenshot('p1-confirmed', player1);
+        await takeScreenshot('p2-sees-ready', player2);
+
+        // P1 cancels
+        await cancelNextInResting(player1);
+
+        // P1 sees Confirm button again, P2 reverts to "Waiting..."
+        await expect(player1.locator(selectors.restingConfirmBtn)).toBeVisible({ timeout: 3000 });
+        await expect(player2.locator(selectors.restingOpponentReady)).not.toBeVisible({ timeout: 5000 });
+        await takeScreenshot('p1-cancelled', player1);
+        await takeScreenshot('p2-waiting-again', player2);
+      });
+
+      // Step 5: Wait for timeout (don't click anything) → auto-transition
       await test.step('Wait for 30s timeout → auto-transition to next game', async () => {
         console.log('[Test 19] NOT clicking Next Game - waiting for 30s timeout...');
 
