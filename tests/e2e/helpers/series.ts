@@ -34,6 +34,14 @@ export const selectors = {
   randomSelecting: '.series-pick.random-selecting',
   countdown: '.series-pick__countdown',
 
+  // Roulette animation (RandomSelecting spinning phase)
+  rouletteCard: '.series-pick__roulette-card',
+  playerBoxes: '.series-pick__player-boxes',
+
+  // Showcase (RandomSelecting result + Selecting showcase)
+  showcase: '.series-pick__selected-showcase',
+  showcaseText: '.series-pick__selected-text',
+
   // Countdown text (3-second delay after both confirm)
   countdownText: '.series-pick__countdown-text',
 
@@ -1236,14 +1244,19 @@ export async function isSeriesAborted(
  * Wait for next game to start after a game ends
  *
  * Phase transitions (with Resting):
- * - PLAY → RESTING (30s) → |winner| SEL (Selecting)
- * - PLAY → RESTING (30s) → |draw| RS (RandomSelecting)
+ * - PLAY → RESTING (30s) → |winner| SEL (Selecting) → 5s showcase → PLAY
+ * - PLAY → RESTING (30s) → |draw| RS (RandomSelecting: roulette + 5s showcase) → PLAY
  * - PLAY →|series done| FIN (no resting)
  *
  * Resting phase:
  * - Shown on the game page as .follow-up.series-rest
  * - "Next Game" button → both confirm → 3s countdown → phase transition
  * - 30s timeout → auto-transition (no confirm needed)
+ *
+ * Showcase:
+ * - After RandomSelecting roulette or Selecting confirm, a 5s showcase displays
+ *   the selected opening (enlarged card + "{player}'s {opening} selected!" text)
+ * - The showcase renders with .series-pick.random-selecting class
  *
  * @param skipResting - If true, don't click "Next Game" (let timeout handle it)
  */
@@ -1261,7 +1274,7 @@ export async function waitForNextGame(
 
   const startTime = Date.now();
   let hasSelected = false; // 패자가 오프닝을 선택했는지 추적
-  let screenshotTaken = { selecting: false, randomSelecting: false, resting: false }; // prevent duplicate screenshots
+  let screenshotTaken = { selecting: false, randomSelecting: false, showcase: false, resting: false }; // prevent duplicate screenshots
 
   // Helper: 한 플레이어의 상태를 체크하고 필요시 행동
   const handlePlayer = async (page: Page, label: string, otherPage: Page): Promise<void> => {
@@ -1302,14 +1315,24 @@ export async function waitForNextGame(
         // UI가 렌더링될 때까지 잠시 대기
         await page.waitForTimeout(300);
 
-        // 1. RandomSelecting: 카운트다운 중, 행동 불필요
+        // 1. RandomSelecting or Showcase: roulette animation / showcase countdown, 행동 불필요
+        //    Both RandomSelecting (roulette + result) and Selecting showcase render with .random-selecting
         const isRandomSelecting = await page.locator(selectors.randomSelecting).isVisible().catch(() => false);
         if (isRandomSelecting) {
-          console.log(`[waitForNextGame] ${label} in RandomSelecting (countdown)`);
-          // Screenshot: random selecting (draw case)
-          if (screenshot && !screenshotTaken.randomSelecting) {
-            screenshotTaken.randomSelecting = true;
-            await screenshot(`game${gameNum}-random-selecting`, page);
+          // Check if showcase is showing (enlarged card + "{player}'s {opening} selected!")
+          const isShowcase = await page.locator(selectors.showcase).isVisible().catch(() => false);
+          if (isShowcase) {
+            console.log(`[waitForNextGame] ${label} in Showcase (5s countdown)`);
+            if (screenshot && !screenshotTaken.showcase) {
+              screenshotTaken.showcase = true;
+              await screenshot(`game${gameNum}-showcase`, page);
+            }
+          } else {
+            console.log(`[waitForNextGame] ${label} in RandomSelecting (roulette)`);
+            if (screenshot && !screenshotTaken.randomSelecting) {
+              screenshotTaken.randomSelecting = true;
+              await screenshot(`game${gameNum}-random-selecting`, page);
+            }
           }
           await page.waitForTimeout(500);
           continue;
@@ -1332,7 +1355,7 @@ export async function waitForNextGame(
             }
             await selectNextOpening(page, 0);
             hasSelected = true;
-            // After confirm, 3s cancel window → WS phase event → redirect
+            // After confirm, 3s cancel window → WS phase event → 5s showcase → redirect
             continue;
           }
         }
@@ -1513,7 +1536,7 @@ export async function completeBanPickPhase(
     await screenshot('random-selecting', player1);
   }
 
-  // Wait for game to start (after RandomSelecting 5s countdown)
+  // Wait for game to start (after RandomSelecting ~13s: roulette animation + 5s showcase countdown)
   await waitForGamePage(player1, gameWaitTimeout);
   await waitForGamePage(player2, gameWaitTimeout);
 
@@ -1592,7 +1615,8 @@ export async function executeSeriesResult(
     }
 
     // Wait for next game if not the last game
-    // Includes resting phase (~5s: both confirm + 3s countdown) + selecting/randomSelecting
+    // Includes resting phase (~5s: both confirm + 3s countdown) +
+    // selecting (~10s: confirm + countdown + 5s showcase) or randomSelecting (~13s: roulette + 5s showcase)
     if (!isLastGame) {
       await player1.waitForTimeout(500);
       await waitForNextGame(player1, player2, null, lastGameId, 45000, screenshot, gameNum + 1);
