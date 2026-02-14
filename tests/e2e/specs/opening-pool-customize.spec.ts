@@ -156,6 +156,11 @@ test.describe('Test 23: Pool Customize → Pick Phase Verification', () => {
           const imbalanced = await whiteBtn.getAttribute('data-imbalanced');
           expect(imbalanced).toBe('true');
 
+          // tooltip 확인: "Win rate too imbalanced" 포함
+          const whiteTitle = await whiteBtn.getAttribute('title');
+          expect(whiteTitle).toContain('Win rate too imbalanced');
+          console.log(`[Test 23] ✓ Imbalanced tooltip: "${whiteTitle}"`);
+
           console.log('[Test 23] ✓ Bongcloud buttons disabled (win rate imbalanced)');
           await screenshot('02.5-bongcloud-blocked', player1);
         } else {
@@ -201,6 +206,43 @@ test.describe('Test 23: Pool Customize → Pick Phase Verification', () => {
         const expectedCount = 5 + addedNames.length;
         await expect(rows).toHaveCount(expectedCount);
         await screenshot('04-final-pool', player1);
+      });
+
+      // ===== Step 3.5: 툴팁 검증 (Already in pool / Pool full) =====
+      await test.step('P1: "Already in your pool" 툴팁 확인', async () => {
+        // 방금 추가한 첫 번째 오프닝 페이지 재방문
+        const firstAdded = newOpenings.find(o => addedNames.includes(o.name))!;
+        await player1.goto(firstAdded.url);
+        await player1.waitForLoadState('networkidle');
+
+        const btnSelector = firstAdded.color === 'white'
+          ? '.opening__pool-add__btn--white'
+          : '.opening__pool-add__btn--black';
+        const btn = player1.locator(btnSelector);
+        await expect(btn).toBeDisabled();
+        const titleText = await btn.getAttribute('title');
+        expect(titleText).toBe('Already in your pool');
+        console.log(`[Test 23] ✓ "Already in your pool" tooltip on ${firstAdded.name} (${firstAdded.color})`);
+        await screenshot('04.5-already-in-pool-tooltip', player1);
+      });
+
+      await test.step('P1: "Pool is full (10/10)" 툴팁 확인', async () => {
+        // 풀에 없는 오프닝 페이지 방문 (pool 10개 가득 찬 상태)
+        const notInPool = newOpeningCandidates.find(o => !addedNames.includes(o.name))!;
+        await player1.goto(notInPool.url);
+        await player1.waitForLoadState('networkidle');
+
+        const btn = player1.locator('.opening__pool-add__btn').first();
+        const btnVisible = await btn.isVisible({ timeout: 3000 }).catch(() => false);
+        if (btnVisible) {
+          await expect(btn).toBeDisabled();
+          const titleText = await btn.getAttribute('title');
+          expect(titleText).toBe('Pool is full (10/10)');
+          console.log(`[Test 23] ✓ "Pool is full (10/10)" tooltip on ${notInPool.name}`);
+          await screenshot('04.6-pool-full-tooltip', player1);
+        } else {
+          console.log(`[Test 23] ✓ ${notInPool.name} has no add buttons (not exactOpening)`);
+        }
       });
 
       // ===== Step 4: Opening Duel 생성 =====
