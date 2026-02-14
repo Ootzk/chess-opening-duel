@@ -61,6 +61,12 @@ const users = [
   // Pair 19: margarita + yevgeny (resting phase - timeout)
   { username: 'margarita', password: 'password', file: '.auth/margarita.json' },
   { username: 'yevgeny', password: 'password', file: '.auth/yevgeny.json' },
+  // Pair 20: yunel + idris (NoStart - white doesn't move)
+  { username: 'yunel', password: 'password', file: '.auth/yunel.json' },
+  { username: 'idris', password: 'password', file: '.auth/idris.json' },
+  // Pair 21: aleksandr + veer (NoStart - white moves, black doesn't)
+  { username: 'aleksandr', password: 'password', file: '.auth/aleksandr.json' },
+  { username: 'veer', password: 'password', file: '.auth/veer.json' },
 ];
 
 async function loginWithRetry(
