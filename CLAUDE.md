@@ -30,6 +30,7 @@ lichess 오픈소스 기반의 커스텀 체스 게임. 특정 오프닝으로�
 - `RandomSelecting` (25): Game 1 오프닝 랜덤 선택 중 (카운트다운)
 - `Playing` (30): 게임 진행 중
 - `Selecting` (35): 패자가 다음 오프닝 선택 중
+- `Resting` (50): 게임 간 휴식 (30초 타이머, 마지막 게임 포함)
 - `Finished` (40): 시리즈 종료
 
 #### 플로우 다이어그램
@@ -43,13 +44,15 @@ flowchart LR
 
     subgraph Game["Game Loop"]
         RS[RandomSelecting<br/>5s] --> PLAY[Playing]
-        PLAY -->|draw| RS
-        PLAY -->|winner| SEL[Selecting<br/>30s]
+        PLAY -->|draw| REST[Resting<br/>30s]
+        PLAY -->|winner| REST
+        REST -->|next game<br/>draw| RS
+        REST -->|next game<br/>winner| SEL[Selecting<br/>30s]
         SEL --> PLAY
     end
 
     BAN -->|startGame1| RS
-    PLAY -->|series done| FIN[Finished]
+    REST -->|series done| FIN[Finished]
 
     PICK -.->|timeout+disconnect| ABORT[Aborted]
     BAN -.->|timeout+disconnect| ABORT
@@ -73,9 +76,10 @@ flowchart TD
 | `SeriesCreated` | Series 생성 | `timeouts.schedule()` |
 | `SeriesPhaseChanged` | Phase 전환 | Banning: `schedule()`, 나머지: `cancel()` |
 | `SeriesAborted` | Timeout + Disconnected | - |
+| `SeriesEnterResting` | 게임 종료 후 휴식 진입 | WS로 resting UI 알림 |
 | `SeriesEnterSelecting` | Game 2+ 승패 결정 | 클라이언트 리다이렉트 |
 | `SeriesDrawRandomSelecting` | Game 2+ 무승부 | 클라이언트 리다이렉트 |
-| `SeriesFinished` | 시리즈 종료 | - |
+| `SeriesFinished` | 시리즈 종료 (Resting 후) | - |
 
 #### API 엔드포인트
 | Method | Path | 설명 |

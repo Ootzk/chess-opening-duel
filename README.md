@@ -26,13 +26,15 @@ flowchart LR
 
     subgraph Game["Game Loop"]
         RS[Random Select] --> PLAY[Playing]
-        PLAY -->|draw| RS
-        PLAY -->|winner| SEL[Loser Selects]
+        PLAY -->|draw| REST[Resting]
+        PLAY -->|winner| REST
+        REST -->|next game<br/>draw| RS
+        REST -->|next game<br/>winner| SEL[Loser Selects]
         SEL --> PLAY
     end
 
     BAN --> RS
-    PLAY -->|series done| FIN[Finished]
+    REST -->|series done| FIN[Finished]
 ```
 
 ### 1. Pick Phase (30s)
@@ -45,9 +47,13 @@ Each player bans 2 of their opponent's picks. After bans, each player has 3 open
 
 ### 3. Playing
 
-After each game, the next opening is determined by the result:
+After each game ends, a **30-second resting period** gives both players time to review the game. Both can click to proceed early, or wait for the timer to expire.
+
+The next opening is then determined by the result:
 - **Draw** — randomly selected from the combined remaining pool
 - **Winner decided** — the loser picks from their own remaining pool
+
+After the final game, the resting period shows a **"View result"** button instead, leading to the finished page.
 
 ### 4. Series Result
 
