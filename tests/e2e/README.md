@@ -294,7 +294,7 @@ test.describe('Test 0: elena vs hans', () => {
 | 함수 | 설명 |
 |:---|:---|
 | `waitForRestingUI(page, timeout?)` | Resting UI (`.follow-up.series-rest`) 표시 대기 |
-| `confirmNextInResting(page, timeout?)` | "Confirm" 버튼 클릭 (Next Game 확인) |
+| `confirmNextInResting(page, timeout?)` | "Confirm"/"View result" 버튼 클릭 (다음 진행 확인) |
 | `cancelNextInResting(page, timeout?)` | "Cancel" 버튼 클릭 (확인 취소) |
 | `getRestingTimeLeft(page)` | 타이머에서 남은 초 파싱 |
 
@@ -331,12 +331,12 @@ test.describe('Test 0: elena vs hans', () => {
 
 ```
 .follow-up.series-rest                          # Resting UI 컨테이너 (게임 종료 위젯 내)
-button.button-green.series-rest__confirm        # "Confirm" 버튼 (Next Game)
+button.button-green.series-rest__confirm        # "Confirm" 버튼 (비마지막: "Confirm", 마지막: "View result")
 button.button-metal.series-rest__cancel         # "Cancel" 버튼 (확인 취소)
-.series-rest__timer                             # 타이머 ("Next game starts in 28")
+.series-rest__timer                             # 타이머 (비마지막: "Next game starts in 28", 마지막: "Results in 28")
 .series-rest__opponent-status                   # 상대 상태 ("Waiting for opponent...")
 .series-rest__opponent-status.ready             # 상대 Ready ("Opponent is Ready!")
-.series-rest__timer:has-text("Game starting in") # 카운트다운 ("Game starting in 3...")
+.series-rest__timer:has-text("Game starting in") # 카운트다운 (비마지막: "Game starting in 3...", 마지막: "Showing results in 3...")
 ```
 
 ### 게임 페이지 (`gameSelectors`)
