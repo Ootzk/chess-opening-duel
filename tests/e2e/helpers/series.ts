@@ -1623,8 +1623,30 @@ export async function executeSeriesResult(
     }
   }
 
+  // Handle final resting phase (last game now enters Resting for recap)
+  await player1.waitForTimeout(500);
+  await Promise.all([
+    waitForRestingUI(player1),
+    waitForRestingUI(player2),
+  ]);
+
+  if (screenshot) {
+    await Promise.all([
+      screenshot('final-resting-p1', player1),
+      screenshot('final-resting-p2', player2),
+    ]);
+  }
+
+  // Both players confirm ("View result" button)
+  await Promise.all([
+    confirmNextInResting(player1),
+    confirmNextInResting(player2),
+  ]);
+
+  // Wait for countdown (3s) + transition to finished
+  await player1.waitForTimeout(5000);
+
   // Verify series finished
-  await player1.waitForTimeout(1000);
   const finished = await isSeriesFinished(player1, seriesId);
   if (!finished) {
     throw new Error(`Series ${seriesId} did not finish after ${outcomes.length} games`);
