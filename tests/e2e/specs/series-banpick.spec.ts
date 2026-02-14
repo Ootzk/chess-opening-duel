@@ -62,9 +62,9 @@ function calculateTimeout(
   const gameCount = seriesResult.split(' - ').length;
   const timeoutBehaviorCount = countTimeoutBehaviors(pick, ban);
 
-  // Base 60s + 25s per game (includes ~5s resting phase) + 35s per timeout behavior
+  // Base 60s + 30s per game (includes resting + selecting/randomSelecting + 5s showcase) + 35s per timeout behavior
   // Each timeout behavior adds ~30s server-side wait
-  const timeout = 60000 + gameCount * 25000 + timeoutBehaviorCount * 35000;
+  const timeout = 60000 + gameCount * 30000 + timeoutBehaviorCount * 35000;
 
   return timeout;
 }

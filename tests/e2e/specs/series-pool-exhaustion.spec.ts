@@ -28,8 +28,8 @@ import {
 
 // ===== Test 17: Pool Exhaustion → Series Draw =====
 test.describe('Test 17: dmitry vs milena (Pool exhaustion → series Draw)', () => {
-  // 6 games (draws) + ban/pick phase + resting phases (~5s each) + buffer
-  test.describe.configure({ timeout: 210000 });
+  // 6 games (draws) + ban/pick phase + resting phases + RandomSelecting (~13s each: roulette + showcase) + buffer
+  test.describe.configure({ timeout: 300000 });
 
   const pairUsers = ['dmitry', 'milena'];
   test.beforeAll(() => cleanupPairData(pairUsers));
