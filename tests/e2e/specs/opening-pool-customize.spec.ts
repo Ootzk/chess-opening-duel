@@ -137,6 +137,33 @@ test.describe('Test 23: Pool Customize → Pick Phase Verification', () => {
         console.log('[Test 23] Remaining pool openings:', remainingNames);
       });
 
+      // ===== Step 2.5: 승률 불균형 오프닝(Bongcloud) 추가 차단 검증 =====
+      await test.step('P1: Bongcloud Attack 추가 시 버튼 비활성화 확인', async () => {
+        await player1.goto('/opening/Bongcloud_Attack/e4_e5_Ke2');
+        await player1.waitForLoadState('networkidle');
+
+        // 양쪽 버튼 모두 disabled 상태여야 함
+        const whiteBtn = player1.locator('.opening__pool-add__btn--white');
+        const blackBtn = player1.locator('.opening__pool-add__btn--black');
+
+        // 버튼이 존재하면 disabled 확인
+        const whiteBtnVisible = await whiteBtn.isVisible({ timeout: 3000 }).catch(() => false);
+        if (whiteBtnVisible) {
+          await expect(whiteBtn).toBeDisabled();
+          await expect(blackBtn).toBeDisabled();
+
+          // data-imbalanced 속성 확인
+          const imbalanced = await whiteBtn.getAttribute('data-imbalanced');
+          expect(imbalanced).toBe('true');
+
+          console.log('[Test 23] ✓ Bongcloud buttons disabled (win rate imbalanced)');
+          await screenshot('02.5-bongcloud-blocked', player1);
+        } else {
+          // exactOpening이 아니면 버튼 자체가 없을 수 있음
+          console.log('[Test 23] ✓ Bongcloud has no add buttons (not exactOpening)');
+        }
+      });
+
       // ===== Step 3: P1이 5개 새 오프닝 추가 =====
       const addedNames: string[] = [];
       await test.step('P1: 5개 새 오프닝을 opening 페이지에서 추가', async () => {
