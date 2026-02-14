@@ -436,6 +436,15 @@ E2E 테스트에서 `kenneth`, `mateo` 등 특수 계정 사용 시 밴픽 Phase
 - [ ] 원인 조사: 어떤 role이 시리즈 플로우를 차단하는지 파악
 - [ ] 수정: 특수 계정도 Opening Duel을 정상 이용할 수 있도록 처리
 
+### TODO: Series 게임 Board API 차단
+
+현재 `isBoardCompatible`에 `Source.Series`가 포함되어 있어 Board API로 시리즈 게임을 조작할 수 있음.
+E2E 테스트에서 `makeAnyMove` 등 헬퍼가 Board API를 사용하므로 현재는 열어둔 상태.
+
+- [ ] Series 게임에서 Board API 접근 차단 (`isBoardCompatible`에서 `Source.Series` 제거)
+- [ ] E2E 헬퍼를 Board API 대신 UI 조작 방식으로 전환
+- [ ] 목적: Stockfish 등 외부 엔진 연동을 통한 봇 플레이 방지
+
 ## 버전 관리 정책
 
 **Release Branch Workflow** 사용:
