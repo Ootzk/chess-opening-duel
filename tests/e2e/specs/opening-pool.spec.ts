@@ -56,3 +56,92 @@ test.describe('Opening Pool Page', () => {
     }
   });
 });
+
+test.describe('Opening Pool Table on all opening pages', () => {
+  test('[Test 21] 로그인 시 모든 opening 페이지에 pool 테이블 표시', async ({ browser }) => {
+    const context = await browser.newContext({ storageState: user.storageState });
+    const page = await context.newPage();
+
+    try {
+      await test.step('/opening 인덱스 페이지에서 pool 테이블 확인', async () => {
+        await page.goto('/opening');
+        await page.waitForLoadState('networkidle');
+
+        const poolTable = page.locator('.opening__pool');
+        await expect(poolTable).toBeVisible();
+
+        const rows = page.locator('.opening__pool__row');
+        await expect(rows).toHaveCount(10);
+
+        await test.info().attach('opening-index-pool-table', {
+          body: await page.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+      });
+
+      await test.step('pool 테이블의 오프닝 링크가 로컬 경로인지 확인', async () => {
+        const firstLink = page.locator('.opening__pool__opening a').first();
+        const href = await firstLink.getAttribute('href');
+        expect(href).toMatch(/^\/opening\//);
+        expect(href).not.toContain('lichess.org');
+      });
+
+      await test.step('pool 테이블의 color 아이콘 표시 확인', async () => {
+        const colorIcons = page.locator('.opening__pool__color .color-icon');
+        await expect(colorIcons.first()).toBeVisible();
+      });
+
+      await test.step('pool 테이블 링크 클릭 → 하위 opening 페이지에서도 pool 테이블 표시', async () => {
+        const firstLink = page.locator('.opening__pool__opening a').first();
+        await firstLink.click();
+        await page.waitForLoadState('networkidle');
+
+        expect(page.url()).toMatch(/\/opening\//);
+
+        const poolTable = page.locator('.opening__pool');
+        await expect(poolTable).toBeVisible();
+
+        const rows = page.locator('.opening__pool__row');
+        await expect(rows).toHaveCount(10);
+
+        await test.info().attach('opening-show-pool-table', {
+          body: await page.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+      });
+
+      await test.step('/opening/tree 페이지에서 pool 테이블 확인', async () => {
+        await page.goto('/opening/tree');
+        await page.waitForLoadState('networkidle');
+
+        const poolTable = page.locator('.opening__pool');
+        await expect(poolTable).toBeVisible();
+
+        const rows = page.locator('.opening__pool__row');
+        await expect(rows).toHaveCount(10);
+
+        await test.info().attach('opening-tree-pool-table', {
+          body: await page.screenshot({ fullPage: true }),
+          contentType: 'image/png',
+        });
+      });
+    } finally {
+      await context.close();
+    }
+  });
+
+  test('[Test 21] 비로그인 시 opening 페이지에 pool 테이블 미표시', async ({ browser }) => {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+
+    try {
+      await page.goto('/opening');
+      await page.waitForLoadState('networkidle');
+
+      const poolTable = page.locator('.opening__pool');
+      await expect(poolTable).toHaveCount(0);
+    } finally {
+      await context.close();
+    }
+  });
+});
