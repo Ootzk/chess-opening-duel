@@ -67,6 +67,9 @@ const users = [
   // Pair 21: aleksandr + veer (NoStart - white moves, black doesn't)
   { username: 'aleksandr', password: 'password', file: '.auth/aleksandr.json' },
   { username: 'veer', password: 'password', file: '.auth/veer.json' },
+  // Pair 22: ramesh + nushi (Pool customization → verify custom openings in pick phase)
+  { username: 'ramesh', password: 'password', file: '.auth/ramesh.json' },
+  { username: 'nushi', password: 'password', file: '.auth/nushi.json' },
 ];
 
 async function loginWithRetry(
