@@ -72,6 +72,9 @@ export const users = {
   // Pair 21: NoStart - white moves, black doesn't
   aleksandr: { username: 'aleksandr', password: 'password', storageState: '.auth/aleksandr.json' },
   veer: { username: 'veer', password: 'password', storageState: '.auth/veer.json' },
+  // Pair 22: Pool customization → verify custom openings in pick phase
+  ramesh: { username: 'ramesh', password: 'password', storageState: '.auth/ramesh.json' },
+  nushi: { username: 'nushi', password: 'password', storageState: '.auth/nushi.json' },
 } as const;
 
 /**
