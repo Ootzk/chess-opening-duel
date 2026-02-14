@@ -66,6 +66,12 @@ export const users = {
   // Pair 19: Resting phase - timeout (no confirm)
   margarita: { username: 'margarita', password: 'password', storageState: '.auth/margarita.json' },
   yevgeny: { username: 'yevgeny', password: 'password', storageState: '.auth/yevgeny.json' },
+  // Pair 20: NoStart - white doesn't move
+  yunel: { username: 'yunel', password: 'password', storageState: '.auth/yunel.json' },
+  idris: { username: 'idris', password: 'password', storageState: '.auth/idris.json' },
+  // Pair 21: NoStart - white moves, black doesn't
+  aleksandr: { username: 'aleksandr', password: 'password', storageState: '.auth/aleksandr.json' },
+  veer: { username: 'veer', password: 'password', storageState: '.auth/veer.json' },
 } as const;
 
 /**
