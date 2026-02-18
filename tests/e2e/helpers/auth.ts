@@ -75,6 +75,12 @@ export const users = {
   // Pair 22: Pool customization → verify custom openings in pick phase
   ramesh: { username: 'ramesh', password: 'password', storageState: '.auth/ramesh.json' },
   nushi: { username: 'nushi', password: 'password', storageState: '.auth/nushi.json' },
+  // Pair 23: Selecting timeout → random pick (loser doesn't select)
+  kwame: { username: 'kwame', password: 'password', storageState: '.auth/kwame.json' },
+  sonia: { username: 'sonia', password: 'password', storageState: '.auth/sonia.json' },
+  // Pair 24: Resting both DC → series abort
+  tomoko: { username: 'tomoko', password: 'password', storageState: '.auth/tomoko.json' },
+  renata: { username: 'renata', password: 'password', storageState: '.auth/renata.json' },
 } as const;
 
 /**
