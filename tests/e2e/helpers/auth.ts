@@ -81,6 +81,9 @@ export const users = {
   // Pair 24: Resting both DC → series abort
   tomoko: { username: 'tomoko', password: 'password', storageState: '.auth/tomoko.json' },
   renata: { username: 'renata', password: 'password', storageState: '.auth/renata.json' },
+  // Pair 25: Resting 1 DC → series forfeit
+  yarah: { username: 'yarah', password: 'password', storageState: '.auth/yarah.json' },
+  suresh: { username: 'suresh', password: 'password', storageState: '.auth/suresh.json' },
 } as const;
 
 /**

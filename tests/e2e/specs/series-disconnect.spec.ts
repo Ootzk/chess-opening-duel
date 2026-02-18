@@ -13,6 +13,8 @@ import {
   waitForNextGame,
   waitForRestingUI,
   confirmNextInResting,
+  waitForFinishedPage,
+  verifyFinishedPageUI,
   selectOpenings,
   confirm,
   isSeriesAborted,
@@ -27,6 +29,7 @@ import {
  * Tests disconnect handling across different phases:
  * - Pick/Ban phase: 1 player DC → series aborted
  * - Playing phase: DC → game loss only, series continues (not forfeit)
+ * - Resting phase: 1 DC → forfeit, both DC → abort
  *
  * | # | P1 | P2 | Phase | Disconnect | Expected |
  * |---|----|----|-------|------------|----------|
@@ -36,6 +39,7 @@ import {
  * | 15 | svetlana | qing | Playing | P2 disconnects during game 3 (score 0-2) | Game loss (score 1-2), series continues |
  * | 21 | kwame | sonia | Selecting | Loser doesn't select, timeout fires | Random pick, game 2 starts |
  * | 22 | tomoko | renata | Resting | Both players disconnect during Resting | Series aborted |
+ * | 23 | yarah | suresh | Resting | P2 disconnects during Resting, P1 stays | Series forfeit (P1 wins) |
  */
 
 // ===== Test 7: Pick Phase Disconnect =====
@@ -670,6 +674,137 @@ test.describe('Test 22: tomoko vs renata (Resting both DC → abort)', () => {
         console.log(`[Test 22] Series ${seriesId} aborted (both DC during Resting)`);
 
         await verifyPage.close();
+      });
+    } finally {
+      await player1Context.close();
+      await player2Context.close();
+    }
+  });
+});
+
+// ===== Test 23: Resting 1 DC → Series Forfeit =====
+test.describe('Test 23: yarah vs suresh (Resting 1 DC → forfeit)', () => {
+  // Ban/pick + game 1 + resting timeout (30s) + DC detection + finished page + buffer
+  test.describe.configure({ timeout: 150000 });
+
+  const pairUsers = ['yarah', 'suresh'];
+  test.beforeAll(() => cleanupPairData(pairUsers));
+
+  test('[Test 23] Resting 1 DC → series forfeit (P1 wins)', async ({ browser }) => {
+    const { player1Context, player2Context, player1, player2 } = await createTwoPlayerContexts(
+      browser,
+      users.yarah,
+      users.suresh
+    );
+
+    let screenshotCounter = 0;
+    const takeScreenshot: ScreenshotFn = async (name, page) => {
+      screenshotCounter++;
+      const label = `${String(screenshotCounter).padStart(2, '0')}-${name}`;
+      await test.info().attach(label, {
+        body: await page.screenshot({ fullPage: true }),
+        contentType: 'image/png',
+      });
+    };
+
+    let seriesId = '';
+
+    try {
+      // Step 1: Create series
+      await test.step('Create series', async () => {
+        await loginBothPlayers(player1, player2, users.yarah, users.suresh);
+        seriesId = await createSeriesChallenge(player1, player2, 'suresh');
+        await takeScreenshot('series-created', player1);
+      });
+
+      // Step 2: Complete ban/pick phase
+      await test.step('Complete ban/pick phase', async () => {
+        await completeBanPickPhase(player1, player2, undefined, takeScreenshot);
+      });
+
+      // Step 3: Game 1 - P1 resigns → P2 wins
+      await test.step('Game 1: P1 resigns', async () => {
+        const gameId = await playOneGame(player1, player2, 'yarah', 'suresh', 'p1-resign');
+        console.log(`[Test 23] Game 1 (${gameId}) → P1 resigned`);
+        await takeScreenshot('game1-resigned', player1);
+      });
+
+      // Step 4: Wait for Resting UI
+      await test.step('Wait for Resting UI', async () => {
+        await Promise.all([
+          waitForRestingUI(player1),
+          waitForRestingUI(player2),
+        ]);
+        await takeScreenshot('resting-p1', player1);
+        await takeScreenshot('resting-p2', player2);
+
+        // Wait for ping polls to register lastSeenAt (3s interval)
+        await player1.waitForTimeout(4000);
+      });
+
+      // Step 5: P2 disconnects
+      await test.step('P2 (suresh) disconnects during Resting', async () => {
+        console.log('[Test 23] Closing P2 page to simulate disconnect...');
+        await player2.close();
+        await takeScreenshot('p1-after-p2-disconnect', player1);
+      });
+
+      // Step 6: Verify DC warning UI on P1
+      await test.step('Verify "Opponent left" warning on P1', async () => {
+        // Wait for P1's poll to detect P2's DC (~3s poll + 5s threshold = ~8s)
+        console.log('[Test 23] Waiting for DC detection on P1 poll...');
+
+        // The poll fires every 3s and checks isOnline (5s threshold).
+        // After P2 disconnects, worst case: next poll in 3s + 5s stale = 8s
+        // Then another poll 3s later confirms DC. Allow ~12s total.
+        await expect(
+          player1.locator('.series-rest__timer:has-text("Opponent left")')
+        ).toBeVisible({ timeout: 15000 });
+
+        await expect(
+          player1.locator('.series-rest__opponent-status:has-text("Opponent disconnected")')
+        ).toBeVisible({ timeout: 3000 });
+
+        await takeScreenshot('p1-opponent-left-warning', player1);
+        console.log('[Test 23] DC warning UI confirmed on P1');
+      });
+
+      // Step 7: Wait for Resting timeout → forfeit → redirect to Finished
+      await test.step('Wait for forfeit and redirect to Finished page', async () => {
+        console.log('[Test 23] Waiting for Resting timeout → forfeit → redirect...');
+
+        // Resting timeout = 30s from phase start.
+        // We already waited ~8-12s for DC detection, so ~18-22s remaining.
+        await waitForFinishedPage(player1, seriesId, 40000);
+
+        await takeScreenshot('finished-page-p1', player1);
+        console.log('[Test 23] P1 redirected to Finished page');
+      });
+
+      // Step 8: Verify Finished page shows "Victory! (forfeit)"
+      await test.step('Verify Finished page UI (forfeit)', async () => {
+        const { banner } = await verifyFinishedPageUI(player1, 1);
+
+        expect(banner).toContain('Victory');
+        expect(banner).toContain('forfeit');
+
+        await takeScreenshot('finished-ui-verified', player1);
+        console.log(`[Test 23] Finished page banner: "${banner}"`);
+      });
+
+      // Step 9: Verify series data via API
+      await test.step('Verify series API data (forfeit)', async () => {
+        const data = await getSeriesData(player1, seriesId);
+        console.log(`[Test 23] Series data: ${JSON.stringify(data)}`);
+
+        expect(data).not.toBeNull();
+        expect(data!.status).toBe(30);           // Finished
+        expect(data!.winner).not.toBeNull();      // Has a winner
+        expect(data!.forfeitBy).not.toBeNull();   // Forfeit recorded
+        expect(data!.gamesCount).toBe(1);         // 1 game played
+
+        await takeScreenshot('api-data-verified', player1);
+        console.log(`[Test 23] Series ${seriesId} forfeited successfully`);
       });
     } finally {
       await player1Context.close();

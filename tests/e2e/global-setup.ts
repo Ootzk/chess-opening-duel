@@ -76,6 +76,9 @@ const users = [
   // Pair 24: tomoko + renata (Resting both DC → series abort)
   { username: 'tomoko', password: 'password', file: '.auth/tomoko.json' },
   { username: 'renata', password: 'password', file: '.auth/renata.json' },
+  // Pair 25: yarah + suresh (Resting 1 DC → series forfeit)
+  { username: 'yarah', password: 'password', file: '.auth/yarah.json' },
+  { username: 'suresh', password: 'password', file: '.auth/suresh.json' },
 ];
 
 async function loginWithRetry(
