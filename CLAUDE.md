@@ -56,28 +56,34 @@ flowchart LR
 
     PICK -.->|timeout+disconnect| ABORT[Aborted]
     BAN -.->|timeout+disconnect| ABORT
+    REST -.->|both DC| ABORT
+    SEL -.->|both DC| ABORT
 ```
 
-**타임아웃 처리 (서버 스케줄러):**
-```mermaid
-flowchart TD
-    TIMEOUT[Timeout fires] --> CHECK{timeLeft > 1?}
-    CHECK -->|Yes| RESCHED[Reschedule remaining]
-    CHECK -->|No| DISC{Disconnected?}
-    DISC -->|Yes| ABORT[Abort series]
-    DISC -->|No| AUTO[Auto-fill + confirm]
-    AUTO --> NEXT[Next phase]
-```
+**Disconnect 처리 정책:**
+
+| Phase | 1명 DC + timeout | 양측 DC + timeout | 접속 중 + timeout |
+|-------|-----------------|------------------|------------------|
+| **Picking** | Abort | Abort | 랜덤 채우기 |
+| **Banning** | Abort | Abort | 랜덤 채우기 |
+| **Playing** | 게임 패배, 시리즈 계속 | Resting에서 abort | — |
+| **Selecting** | 랜덤 선택 | Abort | 랜덤 선택 |
+| **Resting** | 자동 전환 | Abort | 자동 전환 |
+
+- DC 감지: lila-ws `SeriesClientActor`의 `PostStop` → `SeriesPlayerGone` + 개별 `lastSeenAt` 갱신 (ping 3초 간격)
+- DC threshold: 5초 (`isDisconnected = lastSeenAt < now - 5s`)
+- Playing/Resting 중 플레이어는 게임 페이지 (Round WS)에 있으므로 series WS 미연결
+  - Resting UI에서 `GET /api/series/{id}` 3초 간격 호출로 `lastSeenAt` 갱신
 
 **주요 이벤트:**
 
 | 이벤트 | 발생 시점 | Env.scala 핸들러 |
 |--------|----------|------------------|
 | `SeriesCreated` | Series 생성 | `timeouts.schedule()` |
-| `SeriesPhaseChanged` | Phase 전환 | Banning: `schedule()`, 나머지: `cancel()` |
-| `SeriesAborted` | Timeout + Disconnected | - |
+| `SeriesPhaseChanged` | Phase 전환 | Banning/Resting: `schedule()`, Playing/Finished: `cancel()` |
+| `SeriesAborted` | DC abort | - |
 | `SeriesEnterResting` | 게임 종료 후 휴식 진입 | WS로 resting UI 알림 |
-| `SeriesEnterSelecting` | Game 2+ 승패 결정 | 클라이언트 리다이렉트 |
+| `SeriesEnterSelecting` | Game 2+ 승패 결정 | `timeouts.schedule()` + 클라이언트 리다이렉트 |
 | `SeriesDrawRandomSelecting` | Game 2+ 무승부 | 클라이언트 리다이렉트 |
 | `SeriesFinished` | 시리즈 종료 (Resting 후) | - |
 
@@ -253,21 +259,12 @@ docker compose exec lila ./lila.sh playRoutes
 - [ ] Docker 이미지 빌드
 - [ ] 클라우드 배포 (Railway/Fly.io)
 
-### TODO: WebSocket 기반 Disconnect 감지
+### 완료: WebSocket 기반 Disconnect 감지 (v1.4.0)
 
-현재 시리즈 밴/픽/선택 페이지는 HTTP 폴링으로 disconnect를 감지함:
-- `GET /series/{id}` 호출 시 `lastSeenAt` 업데이트
-- 10초 이상 미접속 시 `isDisconnected = true`
-
-**문제점:**
-- 테스트 모드에서 `phaseTimeout(5초) < disconnectTimeout(10초)`
-- 타임아웃 시점에 플레이어가 아직 "online"으로 간주됨
-- 게임 페이지는 WebSocket의 `gone`/`goneIn` 이벤트로 실시간 감지
-
-**해결 방안 (고려중):**
-- lila-ws에 시리즈용 WebSocket 채널 추가
-- 밴/픽/선택 phase에서도 게임처럼 실시간 disconnect 감지
-- E2E 테스트의 Disconnect Abort 케이스 활성화
+- lila-ws에 `SeriesClientActor` 추가 → 실시간 disconnect 감지
+- `PostStop` → `SeriesPlayerGone(roomId, idx, true)` 발행
+- 개별 플레이어 `lastSeenAt` 갱신 (ping 3초 간격, threshold 5초)
+- Playing/Resting 중 게임 페이지에서 `GET /api/series/{id}` 3초 간격 호출
 
 ## 릴리스 내역
 
