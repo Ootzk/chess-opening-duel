@@ -30,7 +30,7 @@ tests/e2e/
     ├── opening-pool.spec.ts           # Opening Pool 페이지 테스트 (Test 20)
     ├── series-banpick.spec.ts         # 밴픽 플로우 테스트 (Test 0~6)
     ├── series-countdown.spec.ts       # Countdown 테스트 (Test 12~13)
-    ├── series-disconnect.spec.ts      # Disconnect/Abort 테스트 (Test 7~8)
+    ├── series-disconnect.spec.ts      # Disconnect/Abort 테스트 (Test 7~8, 14~15)
     ├── series-forfeit.spec.ts         # Series Forfeit 테스트 (Test 9~10)
     ├── series-finished.spec.ts        # Finished Page + Rematch 테스트 (Test 11)
     ├── series-pool-exhaustion.spec.ts # Pool Exhaustion → Draw 테스트 (Test 17)
@@ -94,12 +94,14 @@ const users = [
 | 11 | patricia | adriana | ✅/✅ | ✅/✅ | 1 - 1 - 1 | 3 | 3-0 | Finished page + rematch |
 | 12 | mary | jose | ✅/✅ | ✅/✅ | - | 1 | - | Countdown 표시 + 감소 |
 | 13 | iryna | pedro | ✅/✅ | ✅/✅ | - | 1 | - | Countdown cancel + 재시작 |
-| 14 | aaron | jacob | ✅/✅ | ✅/✅ | disconnect(game) | 1 | forfeit | 게임 중 disconnect → forfeit |
-| 15 | svetlana | qing | ✅/✅ | ✅/✅ | 0 - 0 + disconnect | 3 | forfeit | 0-2 후 game 3 disconnect → forfeit |
+| 14 | aaron | jacob | ✅/✅ | ✅/✅ | disconnect(game) | 1 | 1-0 | 게임 중 disconnect → game loss, series continues |
+| 15 | svetlana | qing | ✅/✅ | ✅/✅ | 0 - 0 + disconnect | 3 | 1-2 | 0-2 후 game 3 disconnect → game loss, series continues |
 | 17 | dmitry | milena | ✅/✅ | ✅/✅ | ½ - ½ - ½ - ½ - ½ - ½ | 6 | 3-3 draw | 풀 소진 → 시리즈 Draw |
 | 18 | yaroslava | ekaterina | ✅/✅ | ✅/✅ | P2 resign + resting | 2 | - | Resting: confirm→cancel→re-confirm→countdown |
 | 19 | margarita | yevgeny | ✅/✅ | ✅/✅ | P1 resign + resting | 2 | - | Resting: confirm→cancel→30s timeout |
 | 20 | elena | - | - | - | - | - | - | Opening Pool 페이지 접근 + 렌더링 확인 |
+| 21 | kwame | sonia | ✅/✅ | ✅/✅ | 1 + selecting timeout | 2 | - | Selecting timeout → 랜덤 선택, game 2 시작 |
+| 22 | tomoko | renata | ✅/✅ | ✅/✅ | 0 + resting both DC | 1 | abort | Resting 양측 DC → 시리즈 abort |
 
 ## Pick/Ban 행동 타입
 
@@ -208,7 +210,7 @@ test.describe('Test 0: elena vs hans', () => {
 - **API 기반 검증**: UI 대신 Series API로 상태 확인 (`isSeriesFinished`)
 - **게임 상태 조회**: Board API streaming으로 정확한 FEN 조회 (`/api/board/game/stream/{gameId}`)
 - **스크린샷**: 주요 시점마다 `test.info().attach()`로 첨부
-- **Disconnect 테스트**: `page.close()`로 WS 연결 끊김 시뮬레이션 → 30s timeout 후 abort 검증
+- **Disconnect 테스트**: `page.close()`로 WS 연결 끊김 시뮬레이션 → Pick/Ban: 30s timeout 후 abort 검증, Playing: claim victory 후 game loss 검증
 
 ## 테스트 계정 쌍 목록
 
@@ -233,6 +235,8 @@ test.describe('Test 0: elena vs hans', () => {
 | 17 | dmitry | milena | Pool Exhaustion Test 17 | series-pool-exhaustion |
 | 18 | yaroslava | ekaterina | Resting confirm Test 18 | series-resting |
 | 19 | margarita | yevgeny | Resting timeout Test 19 | series-resting |
+| 23 | kwame | sonia | Selecting timeout Test 21 | series-disconnect |
+| 24 | tomoko | renata | Resting both DC Test 22 | series-disconnect |
 
 > **중요**: 각 쌍은 하나의 테스트에서만 사용 (병렬 충돌 방지)
 
@@ -410,7 +414,7 @@ a.series-finished__home                    # Home 버튼
 }
 ```
 
-> **참고**: `score`는 내부 값 (실제 점수 × 2). `displayScore`는 `score/2` (API에서 자동 변환)
+> **참고**: `score`는 표시 점수 (승리=1, 무승부=0.5, 패배=0). API가 `displayScore`를 반환함 (내부 값 × 2가 아님)
 >
 > **주의**: `winner`와 `players[].index`는 **글로벌 인덱스** (POV 무관). 챌린저가 항상 player 0이 아님!
 > 플레이어 순서는 **랜덤 색상 배정**에 따라 결정됨 (`ChallengeJoiner.scala`의 `c.finalColor`).

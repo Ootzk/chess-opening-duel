@@ -70,6 +70,12 @@ const users = [
   // Pair 22: ramesh + nushi (Pool customization → verify custom openings in pick phase)
   { username: 'ramesh', password: 'password', file: '.auth/ramesh.json' },
   { username: 'nushi', password: 'password', file: '.auth/nushi.json' },
+  // Pair 23: kwame + sonia (Selecting timeout → random pick)
+  { username: 'kwame', password: 'password', file: '.auth/kwame.json' },
+  { username: 'sonia', password: 'password', file: '.auth/sonia.json' },
+  // Pair 24: tomoko + renata (Resting both DC → series abort)
+  { username: 'tomoko', password: 'password', file: '.auth/tomoko.json' },
+  { username: 'renata', password: 'password', file: '.auth/renata.json' },
 ];
 
 async function loginWithRetry(

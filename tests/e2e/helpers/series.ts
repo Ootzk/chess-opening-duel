@@ -1703,6 +1703,43 @@ export async function confirmSeriesForfeit(page: Page): Promise<void> {
 }
 
 /**
+ * Get full series data from API for detailed assertions
+ */
+export async function getSeriesData(
+  page: Page,
+  seriesId: string
+): Promise<{
+  status: number;
+  phase: number;
+  winner: number | null;
+  scores: [number, number];
+  gamesCount: number;
+  forfeitBy: number | null;
+} | null> {
+  const response = await page.request.get(`http://localhost:8080/series/${seriesId}`, {
+    headers: { Accept: 'application/json' },
+  });
+
+  if (!response.ok()) return null;
+
+  const data = await response.json();
+  const statusId = typeof data.status === 'number' ? data.status : data.status?.id;
+  const phaseId = typeof data.phase === 'number' ? data.phase : data.phase?.id;
+  const players = data.players as Array<{ score?: number }>;
+  const p1Score = players[0]?.score ?? 0;
+  const p2Score = players[1]?.score ?? 0;
+
+  return {
+    status: statusId,
+    phase: phaseId,
+    winner: data.winner ?? null,
+    scores: [p1Score, p2Score],
+    gamesCount: data.games?.length ?? 0,
+    forfeitBy: data.forfeitBy ?? null,
+  };
+}
+
+/**
  * Get series winner index from API
  * Returns 0, 1, or null if no winner
  */
