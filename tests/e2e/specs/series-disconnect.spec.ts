@@ -19,6 +19,7 @@ import {
   confirm,
   isSeriesAborted,
   getSeriesData,
+  verifyReconnectionBanner,
   gameSelectors,
   type ScreenshotFn,
 } from '../helpers/series';
@@ -77,14 +78,20 @@ test.describe('Test 7: angel vs bobby (Pick disconnect)', () => {
         await takeScreenshot('series-created', player1);
       });
 
-      // Step 2: P1 picks and confirms, P2 disconnects
-      await test.step('P1 confirms picks, P2 disconnects', async () => {
+      // Step 2: Reconnection check during Pick phase
+      await test.step('Reconnection: P2 navigates to home → banner → return', async () => {
         await waitForPhase(player1, 'Pick Phase');
         await waitForPhase(player2, 'Pick Phase');
 
+        await verifyReconnectionBanner(player2, seriesId, takeScreenshot);
+        await expect(player2.locator('main.series-pick')).toBeVisible({ timeout: 10000 });
+        expect(player2.url()).toContain(seriesId);
+      });
+
+      // Step 3: P1 picks and confirms, P2 disconnects
+      await test.step('P1 confirms picks, P2 disconnects', async () => {
         // Wait for at least one WS ping to fire (3s interval)
-        // so that lastSeenAt is set in the DB. Without this,
-        // isDisconnected returns false because lastSeenAt=None.
+        // so that lastSeenAt is set in the DB after reconnection.
         await player2.waitForTimeout(4000);
 
         // P1: select 5 and confirm
@@ -184,7 +191,14 @@ test.describe('Test 8: marcel vs vera (Ban disconnect)', () => {
         await takeScreenshot('ban-phase-p2', player2);
       });
 
-      // Step 3: P1 bans and confirms, P2 disconnects
+      // Step 3: Reconnection check during Ban phase
+      await test.step('Reconnection: P2 navigates to home → banner → return', async () => {
+        await verifyReconnectionBanner(player2, seriesId, takeScreenshot);
+        await expect(player2.locator('main.series-pick')).toBeVisible({ timeout: 10000 });
+        await waitForSnabbdomReady(player2);
+      });
+
+      // Step 4: P1 bans and confirms, P2 disconnects
       await test.step('P1 confirms bans, P2 disconnects', async () => {
         // P1: select 2 bans and confirm
         await selectOpenings(player1, 2);
@@ -648,14 +662,23 @@ test.describe('Test 22: tomoko vs renata (Resting both DC → abort)', () => {
         await player1.waitForTimeout(4000);
       });
 
-      // Step 5: Both players disconnect
+      // Step 5: Reconnection check during Resting
+      await test.step('Reconnection: P2 navigates to home → banner → return', async () => {
+        await verifyReconnectionBanner(player2, seriesId, takeScreenshot);
+        // After return, should be on game page (round view with resting overlay)
+        await expect(player2.locator('.rclock').first()).toBeVisible({ timeout: 10000 });
+        // Wait for poll to re-register lastSeenAt after reconnection
+        await player2.waitForTimeout(4000);
+      });
+
+      // Step 6: Both players disconnect
       await test.step('Both players disconnect during Resting', async () => {
         console.log('[Test 22] Closing both pages to simulate both-DC...');
         await player2.close();
         await player1.close();
       });
 
-      // Step 6: Wait for Resting timeout + both-DC → abort
+      // Step 7: Wait for Resting timeout + both-DC → abort
       await test.step('Wait for abort (30s Resting timeout)', async () => {
         // Create a fresh page for API verification (both original pages are closed)
         const verifyPage = await player1Context.newPage();
@@ -742,14 +765,23 @@ test.describe('Test 23: yarah vs suresh (Resting 1 DC → forfeit)', () => {
         await player1.waitForTimeout(4000);
       });
 
-      // Step 5: P2 disconnects
+      // Step 5: Reconnection check during Resting
+      await test.step('Reconnection: P2 navigates to home → banner → return', async () => {
+        await verifyReconnectionBanner(player2, seriesId, takeScreenshot);
+        // After return, should be on game page (round view with resting overlay)
+        await expect(player2.locator('.rclock').first()).toBeVisible({ timeout: 10000 });
+        // Wait for poll to re-register lastSeenAt after reconnection
+        await player2.waitForTimeout(4000);
+      });
+
+      // Step 6: P2 disconnects
       await test.step('P2 (suresh) disconnects during Resting', async () => {
         console.log('[Test 23] Closing P2 page to simulate disconnect...');
         await player2.close();
         await takeScreenshot('p1-after-p2-disconnect', player1);
       });
 
-      // Step 6: Verify DC warning UI on P1
+      // Step 7: Verify DC warning UI on P1
       await test.step('Verify "Opponent left" warning on P1', async () => {
         // Wait for P1's poll to detect P2's DC (~3s poll + 5s threshold = ~8s)
         console.log('[Test 23] Waiting for DC detection on P1 poll...');
