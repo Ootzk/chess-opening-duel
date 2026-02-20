@@ -180,11 +180,22 @@ DB 리셋 시 일부 계정에 특수 roles (admin, teacher, coach 등)이 부�
 
 ### Series 게임 Board API 차단
 
-현재 `isBoardCompatible`에 `Source.Series`가 포함되어 있어 Board API로 시리즈 게임 조작 가능.
-E2E 헬퍼가 Board API를 사용하므로 현재는 열어둔 상태.
+- [x] `isBoardCompatible`에서 `Source.Series` 제거
+- [x] E2E 헬퍼를 UI 조작 방식으로 전환 (Board API → Game Export API + 보드 클릭)
 
-- [ ] `isBoardCompatible`에서 `Source.Series` 제거
-- [ ] E2E 헬퍼를 UI 조작 방식으로 전환
+## 주의사항
+
+### 시리즈 게임 URL 형식
+시리즈 프론트엔드(`ui/series/src/ctrl.ts`)에서 게임 페이지 리다이렉트 시 **색상 suffix가 없을 수 있음**:
+- `handlePhase` (line 550): `/${gameId}` (suffix 없음)
+- `startGameWithId` (line 915): `/${gameId}/${povColor}` (suffix 있음)
+
+→ URL에서 플레이어 색상을 판별하면 안 됨. chessground의 `.cg-wrap` 클래스(`orientation-white`/`orientation-black`)로 판별해야 함.
+
+### Chessground DOM 구조
+- `cg-board`, `cg-container`: 커스텀 **HTML 태그** (`createEl('cg-board')`)
+- `cg-wrap`: 일반 요소에 붙는 **CSS 클래스** (`element.classList.add('cg-wrap')`, `wrap.ts:26`)
+- 셀렉터: `cg-board` (태그), `.cg-wrap` (클래스) — 혼동 주의
 
 ## 참고 자료
 
