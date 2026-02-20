@@ -11,9 +11,12 @@ import {
   getPlayerIndex,
   forfeitSeriesViaApi,
   waitForRestingUI,
+  waitForNextGame,
   gameSelectors,
   getGameIdFromUrl,
   getGameStateViaApi,
+  playBothMoves,
+  resignGame,
   type ScreenshotFn,
 } from '../helpers/series';
 
@@ -279,6 +282,135 @@ test.describe('Test 22: aleksandr vs veer (NoStart - second mover doesn\'t move)
         const finished = await isSeriesFinished(player1, seriesId, 5);
         expect(finished).toBe(true);
         console.log('[Test 22] Series forfeited and finished');
+      });
+    } finally {
+      await player1Context.close();
+      await player2Context.close();
+    }
+  });
+});
+
+// ===== Test 23: NoStart timer starts after RandomSelecting animation =====
+test.describe('Test 23: aleksandr vs veer (NoStart timer delayed until animation done)', () => {
+  // 15s wait + Resting 30s + Selecting 30s + NoStart 26s + buffer
+  test.describe.configure({ timeout: 240000 });
+
+  const pairUsers = ['aleksandr', 'veer'];
+  test.beforeAll(() => cleanupPairData(pairUsers));
+
+  test('[Test 23] 15s wait after animation → no NoStart, then Game 2 NoStart fires', async ({ browser }) => {
+    const { player1Context, player2Context, player1, player2 } = await createTwoPlayerContexts(
+      browser,
+      users.aleksandr,
+      users.veer
+    );
+
+    let screenshotCounter = 0;
+    const takeScreenshot: ScreenshotFn = async (name, page) => {
+      screenshotCounter++;
+      const label = `${String(screenshotCounter).padStart(2, '0')}-${name}`;
+      await test.info().attach(label, {
+        body: await page.screenshot({ fullPage: true }),
+        contentType: 'image/png',
+      });
+    };
+
+    let seriesId = '';
+
+    try {
+      // Step 1: Create series
+      await test.step('Create series', async () => {
+        await loginBothPlayers(player1, player2, users.aleksandr, users.veer);
+        seriesId = await createSeriesChallenge(player1, player2, 'veer');
+      });
+
+      // Step 2: Complete ban/pick phase
+      await test.step('Complete ban/pick phase', async () => {
+        await completeBanPickPhase(player1, player2, undefined, takeScreenshot);
+      });
+
+      // Step 3: Game 1 — wait 15s after board visible, then both move
+      // This proves NoStart timer was properly delayed until after RandomSelecting animation
+      await test.step('Game 1: Wait 15s after board visible → both players move (no NoStart)', async () => {
+        await expect(player1.locator(gameSelectors.board)).toBeVisible({ timeout: 15000 });
+        await expect(player2.locator(gameSelectors.board)).toBeVisible({ timeout: 15000 });
+        await takeScreenshot('game1-board-visible', player1);
+
+        // Wait 15 seconds — longer than old effective NoStart window (~12s)
+        // but shorter than correct timeForFirstMove (25s for Blitz)
+        console.log('[Test 23] Waiting 15 seconds after board visible...');
+        await player1.waitForTimeout(15000);
+
+        // Both players should still be able to move (NoStart hasn't fired)
+        await takeScreenshot('game1-after-15s-wait', player1);
+
+        // Both make their first move — proves neither was NoStart'd
+        await playBothMoves(player1, player2, 'aleksandr', 'veer');
+        console.log('[Test 23] Both players moved after 15s wait — NoStart did NOT fire');
+        await takeScreenshot('game1-both-moved', player1);
+      });
+
+      // Step 4: Resign game 1 and transition to game 2
+      let game1Id = '';
+      await test.step('Resign game 1 → transition to game 2', async () => {
+        game1Id = getGameIdFromUrl(player1.url()) || '';
+        await resignGame(player1, 'aleksandr');
+        console.log(`[Test 23] Game 1 (${game1Id}) resigned by aleksandr`);
+
+        // waitForNextGame handles: Resting → confirm → Selecting timeout → new game arrival
+        await waitForNextGame(player1, player2, null, game1Id, 90000, takeScreenshot, 2);
+        await takeScreenshot('game2-arrived', player1);
+      });
+
+      // Step 5: Game 2 — neither moves → NoStart fires (proves NoStart still works)
+      await test.step('Game 2: Neither moves → NoStart fires', async () => {
+        await expect(player1.locator(gameSelectors.board)).toBeVisible({ timeout: 15000 });
+        await expect(player2.locator(gameSelectors.board)).toBeVisible({ timeout: 15000 });
+        await takeScreenshot('game2-board-visible', player1);
+
+        console.log('[Test 23] Waiting for NoStart in Game 2...');
+
+        // Wait for Resting UI (NoStart fires → game ends → Resting)
+        await Promise.all([
+          waitForRestingUI(player1, 60000),
+          waitForRestingUI(player2, 60000),
+        ]);
+        await takeScreenshot('resting-after-game2-nostart', player1);
+        console.log('[Test 23] NoStart fired in Game 2');
+      });
+
+      // Step 6: Verify scores — Game 1: veer won (aleksandr resigned), Game 2: NoStart
+      await test.step('Verify series scores', async () => {
+        let data: any;
+        // Retry until both game results are reflected (async score update)
+        for (let attempt = 1; attempt <= 10; attempt++) {
+          const response = await player1.request.get(`http://localhost:8080/series/${seriesId}`, {
+            headers: { Accept: 'application/json' },
+          });
+          if (response.ok()) {
+            data = JSON.parse(await response.text());
+            const total = data.players[0].score + data.players[1].score;
+            if (total >= 2) break;
+          }
+          await player1.waitForTimeout(2000);
+        }
+        expect(data).toBeDefined();
+
+        const players = data.players as Array<{ user?: { id: string }; score: number }>;
+        const p0Score = players[0].score;
+        const p1Score = players[1].score;
+        console.log(`[Test 23] Scores after 2 games: P0=${p0Score}, P1=${p1Score}`);
+
+        // Both games should have results (total score = 2)
+        expect(p0Score + p1Score).toBe(2);
+      });
+
+      // Step 7: Forfeit to end
+      await test.step('Forfeit series to end', async () => {
+        await forfeitSeriesViaApi(player1, seriesId);
+        const finished = await isSeriesFinished(player1, seriesId, 5);
+        expect(finished).toBe(true);
+        console.log('[Test 23] Series forfeited and finished');
       });
     } finally {
       await player1Context.close();
