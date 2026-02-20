@@ -84,6 +84,9 @@ export const users = {
   // Pair 25: Resting 1 DC → series forfeit
   yarah: { username: 'yarah', password: 'password', storageState: '.auth/yarah.json' },
   suresh: { username: 'suresh', password: 'password', storageState: '.auth/suresh.json' },
+  // Pair 26: Reconnection banner on home page
+  frances: { username: 'frances', password: 'password', storageState: '.auth/frances.json' },
+  emmanuel: { username: 'emmanuel', password: 'password', storageState: '.auth/emmanuel.json' },
 } as const;
 
 /**

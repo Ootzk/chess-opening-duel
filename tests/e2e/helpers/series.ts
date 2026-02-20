@@ -344,6 +344,37 @@ export async function getRestingTimeLeft(page: Page): Promise<number> {
   return match ? parseInt(match[1], 10) : NaN;
 }
 
+// ===== Reconnection Banner =====
+
+/**
+ * Verify the reconnection banner on home page during an active series.
+ * Navigates to home → verifies banner elements → clicks "Return to Series".
+ * Caller should verify the destination page after this returns.
+ */
+export async function verifyReconnectionBanner(
+  page: Page,
+  seriesId: string,
+  screenshotFn?: ScreenshotFn,
+): Promise<void> {
+  await page.goto('/');
+  await page.waitForLoadState('networkidle');
+  if (screenshotFn) await screenshotFn('reconnect-home', page);
+
+  // Verify banner
+  await expect(page.locator('.lobby__nope')).toBeVisible({ timeout: 10000 });
+  await expect(page.locator('text="Hang on!"')).toBeVisible();
+  await expect(page.locator('text="A series is in progress with"')).toBeVisible();
+  await expect(page.locator('text="Return to Series"')).toBeVisible();
+  await expect(page.locator('text="Forfeit the Series"')).toBeVisible();
+  if (screenshotFn) await screenshotFn('reconnect-banner', page);
+
+  // Click "Return to Series" → pickPage controller redirects by phase
+  await page.locator('a:has-text("Return to Series")').click();
+  // Wait until navigated away from home
+  await page.waitForURL(url => url.pathname !== '/', { timeout: 15000 });
+  if (screenshotFn) await screenshotFn('reconnect-returned', page);
+}
+
 // ===== Series Creation via Challenge Flow =====
 
 // Lobby and Setup selectors
