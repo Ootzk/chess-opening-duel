@@ -14,7 +14,7 @@ import {
   waitForNextGame,
   gameSelectors,
   getGameIdFromUrl,
-  getGameStateViaApi,
+  getGameState,
   playBothMoves,
   resignGame,
   type ScreenshotFn,
@@ -91,7 +91,7 @@ test.describe('Test 21: yunel vs idris (NoStart - neither moves)', () => {
         // Determine who is white (first mover) for verification later
         const gameId = getGameIdFromUrl(player1.url());
         if (gameId) {
-          const gameState = await getGameStateViaApi(player1, 'yunel', gameId);
+          const gameState = await getGameState(player1, gameId);
           console.log(`[Test 21] White: ${gameState.whitePlayer}, Black: ${gameState.blackPlayer}`);
         }
       });
@@ -354,7 +354,7 @@ test.describe('Test 23: aleksandr vs veer (NoStart timer delayed until animation
       let game1Id = '';
       await test.step('Resign game 1 → transition to game 2', async () => {
         game1Id = getGameIdFromUrl(player1.url()) || '';
-        await resignGame(player1, 'aleksandr');
+        await resignGame(player1);
         console.log(`[Test 23] Game 1 (${game1Id}) resigned by aleksandr`);
 
         // waitForNextGame handles: Resting → confirm → Selecting timeout → new game arrival

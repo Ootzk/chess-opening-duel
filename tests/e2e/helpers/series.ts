@@ -705,83 +705,46 @@ export async function getUsername(page: Page): Promise<string> {
 }
 
 /**
- * Full game state from Board API including player colors
+ * Full game state including player colors
  */
 export interface GameFullState {
   initialFen: string;
-  moves: string;
-  whitePlayer: string;  // Username of white player
-  blackPlayer: string;  // Username of black player
+  moves: string;          // SAN format (space-separated)
+  whitePlayer: string;    // Username of white player
+  blackPlayer: string;    // Username of black player
 }
 
 /**
- * Get current game state via Board API streaming
- * Returns the initial FEN, moves, and player color assignments
- * Note: Uses timeout since streaming endpoint never closes
+ * Get current game state via Game Export API
+ * Returns the initial FEN, moves (SAN), and player color assignments
+ * Uses the public game export endpoint (no Board API / auth token required)
  */
-export async function getGameStateViaApi(
+export async function getGameState(
   page: Page,
-  username: string,
   gameId: string
 ): Promise<GameFullState> {
-  const token = `lip_${username.toLowerCase()}`;
-  const url = `http://localhost:8080/api/board/game/stream/${gameId}`;
+  const url = `http://localhost:8080/game/export/${gameId}`;
 
-  // Use fetch with AbortController for timeout on streaming response
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 5000);
+  const response = await page.request.get(url, {
+    headers: { Accept: 'application/json' },
+  });
 
-  try {
-    const response = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/x-ndjson',
-      },
-      signal: controller.signal,
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to get game state: ${response.status}`);
-    }
-
-    // Read only the first chunk (gameFull event)
-    const reader = response.body?.getReader();
-    if (!reader) {
-      throw new Error('No response body');
-    }
-
-    const decoder = new TextDecoder();
-    let buffer = '';
-
-    // Read until we get a complete first line
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const newlineIndex = buffer.indexOf('\n');
-      if (newlineIndex !== -1) {
-        // Got the first complete line
-        const firstLine = buffer.slice(0, newlineIndex);
-        reader.cancel(); // Stop reading
-        const gameFull = JSON.parse(firstLine);
-        return {
-          initialFen: gameFull.initialFen || 'startpos',
-          moves: gameFull.state?.moves || '',
-          whitePlayer: gameFull.white?.id?.toLowerCase() || gameFull.white?.name?.toLowerCase() || '',
-          blackPlayer: gameFull.black?.id?.toLowerCase() || gameFull.black?.name?.toLowerCase() || '',
-        };
-      }
-    }
-
-    throw new Error('Stream ended without data');
-  } finally {
-    clearTimeout(timeoutId);
+  if (!response.ok()) {
+    throw new Error(`Failed to get game state: ${response.status()}`);
   }
+
+  const data = await response.json();
+  return {
+    initialFen: data.initialFen || 'startpos',
+    moves: data.moves || '',
+    whitePlayer: data.players?.white?.user?.id?.toLowerCase() || '',
+    blackPlayer: data.players?.black?.user?.id?.toLowerCase() || '',
+  };
 }
 
 /**
  * Compute current FEN by applying moves to initial FEN
+ * Supports SAN format (from Game Export API)
  */
 export function computeCurrentFen(initialFen: string, moves: string): string {
   const chess = new Chess();
@@ -791,14 +754,11 @@ export function computeCurrentFen(initialFen: string, moves: string): string {
     chess.load(initialFen);
   }
 
-  // Apply moves (space-separated UCI notation)
+  // Apply moves (space-separated SAN notation from Game Export API)
   if (moves) {
     const moveList = moves.trim().split(' ').filter(m => m);
-    for (const uci of moveList) {
-      const from = uci.slice(0, 2);
-      const to = uci.slice(2, 4);
-      const promotion = uci.length > 4 ? uci.slice(4) : undefined;
-      chess.move({ from, to, promotion });
+    for (const san of moveList) {
+      chess.move(san);
     }
   }
 
@@ -806,43 +766,54 @@ export function computeCurrentFen(initialFen: string, moves: string): string {
 }
 
 /**
- * Make a move using the Board API
- * This is more reliable than UI clicking
+ * Make a move by clicking on the chessboard (click-click pattern)
+ * Clicks the source square, then the destination square.
  *
- * @param page - Playwright page
- * @param username - Username to get token (e.g., 'elena' -> 'lip_elena')
- * @param uci - UCI move string (e.g., 'e2e4', 'g1f3')
+ * @param page - Playwright page (must be on a game page)
+ * @param from - Source square key (e.g., 'e2')
+ * @param to - Destination square key (e.g., 'e4')
  */
-export async function makeMoveViaApi(
+export async function makeMoveViaUI(
   page: Page,
-  username: string,
-  uci: string
-): Promise<boolean> {
-  const gameId = getGameIdFromUrl(page.url());
-  if (!gameId) {
-    throw new Error('Could not extract game ID from URL');
+  from: string,
+  to: string
+): Promise<void> {
+  const board = page.locator('cg-board');
+  const bounds = await board.boundingBox();
+  if (!bounds) {
+    throw new Error('Could not get chessboard bounding box');
   }
 
-  const token = `lip_${username.toLowerCase()}`;
-  const url = `http://localhost:8080/api/board/game/${gameId}/move/${uci}`;
+  // Determine board orientation from chessground DOM class
+  const cgWrap = page.locator('.cg-wrap');
+  const asWhite = await cgWrap.evaluate(el => el.classList.contains('orientation-white'));
 
-  const response = await page.request.post(url, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
-
-  if (!response.ok()) {
-    const body = await response.text();
-    console.log(`[makeMoveViaApi] FAILED: ${url} token=${token} status=${response.status()} body=${body}`);
+  function squareCenter(key: string) {
+    const file = key.charCodeAt(0) - 97; // 'a'=0 .. 'h'=7
+    const rank = parseInt(key[1]) - 1;   // '1'=0 .. '8'=7
+    const df = asWhite ? file : 7 - file;
+    const dr = asWhite ? 7 - rank : rank;
+    return {
+      x: bounds.x + (df + 0.5) * bounds.width / 8,
+      y: bounds.y + (dr + 0.5) * bounds.height / 8,
+    };
   }
 
-  return response.ok();
+  const fromPos = squareCenter(from);
+  const toPos = squareCenter(to);
+
+  // Click source square (selects the piece)
+  await page.mouse.click(fromPos.x, fromPos.y);
+  await page.waitForTimeout(200);
+
+  // Click destination square (completes the move)
+  await page.mouse.click(toPos.x, toPos.y);
+  await page.waitForTimeout(300);
 }
 
 /**
  * Check if it's our turn to move
- * Uses Board API streaming to get accurate current game state and color assignment
+ * Uses Game Export API to get current game state and color assignment
  */
 export async function isMyTurn(
   page: Page,
@@ -852,7 +823,7 @@ export async function isMyTurn(
   if (!gameId) return true; // Assume it's our turn if we can't determine
 
   try {
-    const gameState = await getGameStateViaApi(page, username, gameId);
+    const gameState = await getGameState(page, gameId);
     const currentFen = computeCurrentFen(gameState.initialFen, gameState.moves);
     const chess = new Chess(currentFen);
     const turnColor = chess.turn(); // 'w' or 'b'
@@ -868,126 +839,116 @@ export async function isMyTurn(
 }
 
 /**
- * Make any legal move on the board using Board API
- * Uses Board API streaming to get current game state, then chess.js to compute legal moves
+ * Make any legal move on the board by clicking the chessboard
+ * Uses Game Export API to get current game state, chess.js to compute legal moves,
+ * then clicks the board at the correct coordinates.
+ *
+ * Includes retry logic: the Game Export API may return slightly stale data
+ * (e.g., opponent's move not yet reflected). We verify our turn by checking
+ * board orientation (from URL) against chess.turn().
  */
-export async function makeAnyMove(page: Page, username?: string): Promise<void> {
+export async function makeAnyMove(page: Page, _username?: string): Promise<void> {
   // Wait for board to be ready
   await expect(page.locator(gameSelectors.board)).toBeVisible({ timeout: 5000 });
 
-  // Get username if not provided
-  const user = username || (await getUsername(page));
   const gameId = getGameIdFromUrl(page.url());
-
-  if (!user || !gameId) {
-    throw new Error(`Could not determine username (${user}) or gameId (${gameId})`);
+  if (!gameId) {
+    throw new Error(`Could not determine gameId from URL: ${page.url()}`);
   }
 
-  // Get current game state via Board API
-  const { initialFen, moves } = await getGameStateViaApi(page, user, gameId);
+  // Determine our color from chessground board orientation
+  const cgWrap = page.locator('.cg-wrap');
+  const weAreWhite = await cgWrap.evaluate(el => el.classList.contains('orientation-white'));
+  const ourColor = weAreWhite ? 'w' : 'b';
 
-  // Compute current FEN by applying moves to initial FEN
-  const currentFen = computeCurrentFen(initialFen, moves);
+  // Retry loop: wait until the Game Export API shows it's our turn
+  let currentFen = '';
+  let legalMoves: ReturnType<Chess['moves']> = [];
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const { initialFen, moves } = await getGameState(page, gameId);
+    currentFen = computeCurrentFen(initialFen, moves);
+    const chess = new Chess(currentFen);
 
-  // Use chess.js to get legal moves from current position
-  const chess = new Chess(currentFen);
-  const legalMoves = chess.moves({ verbose: true });
+    if (chess.turn() === ourColor) {
+      legalMoves = chess.moves({ verbose: true });
+      break;
+    }
+
+    // Not our turn yet — API may be stale, wait and retry
+    console.log(`[makeAnyMove] Not our turn yet (attempt ${attempt + 1}), waiting...`);
+    await page.waitForTimeout(500);
+  }
 
   if (legalMoves.length === 0) {
-    throw new Error('No legal moves available');
+    throw new Error(`No legal moves available or not our turn. gameId=${gameId}, fen=${currentFen}`);
   }
 
-  // Make the first legal move
+  // Make the first legal move via UI click
   const move = legalMoves[0];
-  const uci = move.from + move.to + (move.promotion || '');
+  console.log(`[makeAnyMove] gameId=${gameId}, currentFen=${currentFen}, move=${move.from}${move.to}`);
 
-  console.log(`[makeAnyMove] user=${user}, gameId=${gameId}, currentFen=${currentFen}, move=${uci}`);
+  await makeMoveViaUI(page, move.from, move.to);
+}
 
-  const success = await makeMoveViaApi(page, user, uci);
-  if (!success) {
-    throw new Error(`Move ${uci} rejected by API for ${user} (gameId=${gameId})`);
-  }
+/**
+ * Resign the current game via UI button clicks
+ * Clicks the resign button, then confirms in the dialog.
+ * Note: Both players must have moved at least once before resign is available.
+ */
+export async function resignGame(page: Page): Promise<void> {
+  const gameId = getGameIdFromUrl(page.url());
+  console.log(`[resignGame] gameId=${gameId}`);
+
+  // Click the resign button (flag icon)
+  const resignBtn = page.locator(gameSelectors.resignBtn);
+  await expect(resignBtn).toBeVisible({ timeout: 5000 });
+  await resignBtn.click();
+
+  // Click confirm in the act-confirm dialog
+  const confirmBtn = page.locator(gameSelectors.resignConfirm);
+  await expect(confirmBtn).toBeVisible({ timeout: 3000 });
+  await confirmBtn.click();
+
+  await page.waitForTimeout(500);
+}
+
+/**
+ * Offer a draw via UI button clicks
+ * Clicks the draw button, then confirms in the dialog.
+ */
+export async function offerDrawViaUI(page: Page): Promise<void> {
+  const gameId = getGameIdFromUrl(page.url());
+  console.log(`[offerDrawViaUI] gameId=${gameId}`);
+
+  // Click the draw button (½ icon)
+  const drawBtn = page.locator(gameSelectors.drawOfferBtn);
+  await expect(drawBtn).toBeVisible({ timeout: 5000 });
+  await drawBtn.click();
+
+  // Click confirm in the act-confirm dialog
+  const confirmBtn = page.locator(gameSelectors.drawConfirm);
+  await expect(confirmBtn).toBeVisible({ timeout: 3000 });
+  await confirmBtn.click();
 
   await page.waitForTimeout(300);
 }
 
 /**
- * Resign the current game via Board API
- * Note: Both players must have moved at least once before resign is available
+ * Accept a draw offer via UI
+ * When the opponent offers a draw, a question prompt appears with yes/no buttons.
+ * Clicks the 'yes' button in the question prompt.
  */
-export async function resignGame(page: Page, username: string): Promise<boolean> {
+export async function acceptDrawViaUI(page: Page): Promise<void> {
   const gameId = getGameIdFromUrl(page.url());
-  if (!gameId) {
-    throw new Error('Could not extract game ID from URL');
-  }
+  console.log(`[acceptDrawViaUI] gameId=${gameId}`);
 
-  const token = `lip_${username.toLowerCase()}`;
-  const url = `http://localhost:8080/api/board/game/${gameId}/resign`;
+  // Wait for the draw offer question prompt to appear
+  // The question prompt renders yes/no as <a> elements: <div class="question"><a class="yes" ...></div>
+  const acceptBtn = page.locator('.question a.yes');
+  await expect(acceptBtn).toBeVisible({ timeout: 10000 });
+  await acceptBtn.click();
 
-  console.log(`[resignGame] user=${username}, gameId=${gameId}, url=${url}`);
-
-  const response = await page.request.post(url, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
-
-  const body = await response.text();
-  console.log(`[resignGame] user=${username}, status=${response.status()}, body=${body}`);
-
-  return response.ok();
-}
-
-/**
- * Offer or accept a draw via Board API
- * Both players sending draw/yes results in a draw
- */
-export async function sendDrawViaApi(page: Page, username: string): Promise<boolean> {
-  const gameId = getGameIdFromUrl(page.url());
-  if (!gameId) {
-    throw new Error('Could not extract game ID from URL');
-  }
-
-  const token = `lip_${username.toLowerCase()}`;
-  const url = `http://localhost:8080/api/board/game/${gameId}/draw/yes`;
-
-  console.log(`[sendDrawViaApi] user=${username}, gameId=${gameId}, url=${url}`);
-
-  const response = await page.request.post(url, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
-
-  const body = await response.text();
-  console.log(`[sendDrawViaApi] user=${username}, status=${response.status()}, body=${body}`);
-
-  return response.ok();
-}
-
-/**
- * Offer a draw (deprecated - use sendDrawViaApi)
- */
-export async function offerDraw(page: Page): Promise<void> {
-  // Click draw button to show confirmation
-  const drawBtn = page.locator('button.fbt:has([data-icon])').filter({ hasText: /½|draw/i }).first();
-  if (await drawBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
-    await drawBtn.click();
-    // Confirm draw offer
-    const confirmBtn = page.locator('.act-confirm button.fbt.yes');
-    await expect(confirmBtn).toBeVisible({ timeout: 3000 });
-    await confirmBtn.click();
-  }
-}
-
-/**
- * Accept a draw offer (deprecated - use sendDrawViaApi)
- */
-export async function acceptDraw(page: Page): Promise<void> {
-  // Look for draw accept button (appears when opponent offered)
-  const drawAcceptBtn = page.locator('button.draw-yes, button:has-text("Accept draw")');
-  await expect(drawAcceptBtn.first()).toBeVisible({ timeout: 10000 });
-  await drawAcceptBtn.first().click();
+  await page.waitForTimeout(500);
 }
 
 /**
@@ -1080,15 +1041,14 @@ export async function playBothMoves(
     await player2.waitForURL((url) => url.pathname.includes(gameId), { timeout: 10000 });
   }
 
-  // Get current game state including player color assignments
-  const gameState = await getGameStateViaApi(player1, p1Username, gameId);
+  // Get current game state including player color assignments (via Game Export API)
+  const gameState = await getGameState(player1, gameId);
   const currentFen = computeCurrentFen(gameState.initialFen, gameState.moves);
   const chess = new Chess(currentFen);
   const turnColor = chess.turn(); // 'w' or 'b'
 
   // Determine which player is which color
   const p1IsWhite = gameState.whitePlayer === p1Username.toLowerCase();
-  const p2IsWhite = gameState.whitePlayer === p2Username.toLowerCase();
 
   // Determine who should move first based on turn and color assignment
   const whiteToMove = turnColor === 'w';
@@ -1097,15 +1057,19 @@ export async function playBothMoves(
   console.log(`[playBothMoves] gameId=${gameId}, white=${gameState.whitePlayer}, black=${gameState.blackPlayer}, turn=${turnColor}, p1IsWhite=${p1IsWhite}, p1ToMove=${p1ToMove}`);
 
   // Make moves in correct order based on who should move
+  // Wait between moves to ensure the Game Export API reflects the first move
+  // and the opponent's board has been updated via WS
   if (p1ToMove) {
-    await makeAnyMove(player1, p1Username);
-    await makeAnyMove(player2, p2Username);
+    await makeAnyMove(player1);
+    await player2.waitForTimeout(1000);
+    await makeAnyMove(player2);
   } else {
-    await makeAnyMove(player2, p2Username);
-    await makeAnyMove(player1, p1Username);
+    await makeAnyMove(player2);
+    await player1.waitForTimeout(1000);
+    await makeAnyMove(player1);
   }
 
-  await player1.waitForTimeout(300);
+  await player1.waitForTimeout(500);
 }
 
 /**
@@ -1131,20 +1095,18 @@ export async function playOneGame(
   // Both players make one move (required for resign/draw)
   await playBothMoves(player1, player2, p1Username, p2Username);
 
-  // Execute the result
+  // Execute the result via UI interactions
   switch (result) {
     case 'p1-resign':
-      await resignGame(player1, p1Username);
+      await resignGame(player1);
       break;
     case 'p2-resign':
-      await resignGame(player2, p2Username);
+      await resignGame(player2);
       break;
     case 'draw':
-      // Both players send draw/yes
-      await Promise.all([
-        sendDrawViaApi(player1, p1Username),
-        sendDrawViaApi(player2, p2Username),
-      ]);
+      // P1 offers draw, P2 accepts (sequential UI flow)
+      await offerDrawViaUI(player1);
+      await acceptDrawViaUI(player2);
       break;
   }
 

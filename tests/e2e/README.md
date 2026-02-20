@@ -208,7 +208,7 @@ test.describe('Test 0: elena vs hans', () => {
 
 - **병렬 실행**: 12개 테스트가 독립적 → `workers: 3`으로 안정적 병렬 실행
 - **API 기반 검증**: UI 대신 Series API로 상태 확인 (`isSeriesFinished`)
-- **게임 상태 조회**: Board API streaming으로 정확한 FEN 조회 (`/api/board/game/stream/{gameId}`)
+- **게임 상태 조회**: Game Export API로 정확한 FEN 조회 (`/game/export/{gameId}`)
 - **스크린샷**: 주요 시점마다 `test.info().attach()`로 첨부
 - **Disconnect 테스트**: `page.close()`로 WS 연결 끊김 시뮬레이션 → Pick/Ban: 30s timeout 후 abort 검증, Playing: claim victory 후 game loss 검증
 
@@ -257,12 +257,13 @@ test.describe('Test 0: elena vs hans', () => {
 
 | 함수 | 설명 |
 |:---|:---|
-| `playBothMoves(p1, p2, user1, user2)` | 양측 1수씩 Board API로 진행 (turn 자동 감지) |
+| `playBothMoves(p1, p2, user1, user2)` | 양측 1수씩 UI 클릭으로 진행 (turn 자동 감지) |
 | `playOneGame(p1, p2, user1, user2, result)` | 양측 1수 + result 실행. `result`: `'p1-resign'` / `'p2-resign'` / `'draw'` |
-| `makeAnyMove(page, username?)` | Board API로 아무 합법수 1수 진행 |
-| `makeMoveViaApi(page, username, uci)` | Board API로 특정 UCI 수 진행. token: `lip_{username}` |
-| `resignGame(page, username)` | Board API로 resign. **양측 1수 이상 필요** |
-| `sendDrawViaApi(page, username)` | Board API로 draw 요청. 양측 호출 시 무승부 |
+| `makeAnyMove(page)` | 아무 합법수 1수를 보드 클릭으로 진행 |
+| `makeMoveViaUI(page, from, to)` | 특정 수를 보드 클릭으로 진행 (click-click 패턴) |
+| `resignGame(page)` | UI 버튼으로 resign. **양측 1수 이상 필요** |
+| `offerDrawViaUI(page)` | UI 버튼으로 draw 제안 (제안자) |
+| `acceptDrawViaUI(page)` | UI 버튼으로 draw 수락 (수락자) |
 | `waitForNextGame(p1, p2, null, prevGameId)` | 게임 종료 후 다음 게임 대기 (Selecting/RandomSelecting 자동 처리) |
 
 ### 시리즈 상태 확인
@@ -420,27 +421,28 @@ a.series-finished__home                    # Home 버튼
 > 플레이어 순서는 **랜덤 색상 배정**에 따라 결정됨 (`ChallengeJoiner.scala`의 `c.finalColor`).
 > 따라서 테스트에서 winner를 검증할 때 `getPlayerIndex()`로 실제 인덱스를 확인해야 함.
 
-## Board API (게임 조작)
+## Game Export API (게임 상태 조회)
 
-모든 Board API는 `Authorization: Bearer lip_{username}` 헤더 사용.
+게임 상태 조회에 Game Export API 사용 (인증 불필요).
 
 | Method | Path | 설명 |
 |:---|:---|:---|
-| GET | `/api/board/game/stream/{gameId}` | 게임 상태 스트리밍 (NDJSON). 첫 줄 = gameFull |
-| POST | `/api/board/game/{gameId}/move/{uci}` | UCI 수 진행 (e.g., `e2e4`) |
-| POST | `/api/board/game/{gameId}/resign` | 게임 resign (양측 1수 이상 필요) |
-| POST | `/api/board/game/{gameId}/draw/yes` | 무승부 요청/수락 (양측 호출 시 무승부) |
+| GET | `/game/export/{gameId}` | 게임 상태 JSON 조회 (Accept: application/json) |
 
-### gameFull 응답 (첫 스트리밍 라인)
+### 응답 예시
 
 ```json
 {
-  "initialFen": "rnbqkb1r/...",   // 또는 "startpos"
-  "state": { "moves": "e2e4 e7e5 ..." },
-  "white": { "id": "elena" },
-  "black": { "id": "hans" }
+  "initialFen": "rnbqkb1r/...",
+  "moves": "e4 e5 Nf3 ...",
+  "players": {
+    "white": { "user": { "id": "elena" } },
+    "black": { "user": { "id": "hans" } }
+  }
 }
 ```
+
+> **참고**: Board API (`/api/board/game/...`)는 Series 게임에 대해 **차단**되어 있음 (봇/엔진 방지).
 
 ## Cleanup 패턴
 
