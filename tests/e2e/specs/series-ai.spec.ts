@@ -70,7 +70,7 @@ test.describe('AI Opening Duel: mateo vs Stockfish', () => {
       // Step 2: Open AI Opening Duel modal and submit
       await test.step('Create AI series from lobby', async () => {
         // Click "Opening Duel with Computer" button
-        const aiBtn = page.locator('.lobby__start button:has-text("Opening Duel with Computer")');
+        const aiBtn = page.locator('.lobby__start .lobby__start__button--openingDuelAi');
         await expect(aiBtn).toBeVisible({ timeout: 5000 });
         await aiBtn.click();
 

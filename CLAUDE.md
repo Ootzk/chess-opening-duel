@@ -9,6 +9,14 @@ lichess 오픈소스 기반의 커스텀 체스 게임. 특정 오프닝으로�
 - 정해진 오프닝 풀에서 각자 밴 → 남은 오프닝으로 대결
 - 기본 체스 룰 유지, 승리 조건만 커스텀
 
+### 시리즈 시작 방법
+- **Opening Duel with a Friend**: 로비에서 특정 유저에게 챌린지 → 수락 시 시리즈 생성
+- **Opening Duel with Anyone**: 로비 hook 등록 → 서버 자동 매칭 (`LobbySyncActor.findCompatible`) → 시리즈 생성
+  - Hook 매칭 조건: `isAuth`, `openingDuel`, `variant`, `clock`, `color`, `ratingRange`
+  - Rating range: `Gaussian(1500, 350).range(rating, 0.2)` 기반 기본값 또는 유저 설정
+  - 매칭 성공 시 `SeriesHookMatch` Bus 이벤트 → 시리즈 생성 + 양측 `/series/{id}/pick` 리다이렉트
+- **Opening Duel with Computer**: AI(Stockfish) 상대 시리즈 (싱글플레이어)
+
 ### 점수 시스템
 - **승리**: 1점, **무승부**: 0.5점, **패배**: 0점
 - 2.5점 이상 + 상대보다 높은 점수 → 시리즈 승자
