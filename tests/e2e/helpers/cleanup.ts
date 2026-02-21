@@ -16,6 +16,7 @@ export function cleanupPairData(users: string[]): void {
         { "challenger.user.id": { $in: ${JSON.stringify(users)} } },
         { "destUser.id": { $in: ${JSON.stringify(users)} } }
       ]});
+      db.opening_pool.deleteMany({ "_id": { $in: ${JSON.stringify(users)} } });
     `.replace(/\n/g, ' ');
     execSync(
       `docker exec chess-opening-duel-mongodb-1 mongosh lichess --quiet --eval '${mongoCommand}'`,
