@@ -178,10 +178,18 @@ DB 리셋 시 일부 계정에 특수 roles (admin, teacher, coach 등)이 부�
 - [ ] 어떤 role이 시리즈 플로우를 차단하는지 파악
 - [ ] 특수 계정도 Opening Duel을 정상 이용할 수 있도록 처리
 
-### Series 게임 Board API 차단
+### 시리즈 관전 기능
 
-- [x] `isBoardCompatible`에서 `Source.Series` 제거
-- [x] E2E 헬퍼를 UI 조작 방식으로 전환 (Board API → Game Export API + 보드 클릭)
+현재 제3자는 개별 게임만 관전 가능하고, 시리즈 전체 흐름(밴픽, phase 진행)은 볼 수 없음.
+
+- `/series/{id}` (JSON): Open — 누구나 조회 가능
+- `/series/{id}/pick` (HTML): Auth + 플레이어 전용
+- 시리즈 WebSocket: 플레이어 전용 (`mongo.seriesPlayer()` 체크)
+- 개별 게임 (`/{gameId}`): Open — 누구나 관전 가능
+
+- [ ] 관전자용 시리즈 페이지 (read-only 밴픽 뷰, 점수판, 현재 phase)
+- [ ] 관전자용 WebSocket 접근 허용 (read-only)
+- [ ] 시리즈 링크 공유 기능
 
 ## 주의사항
 

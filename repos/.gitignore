@@ -2,6 +2,4 @@
 !.gitignore
 !lila/
 !lila-ws/
-!chessground/
-!scalachess/
 !lila-db-seed/
