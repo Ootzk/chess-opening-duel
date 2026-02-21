@@ -20,7 +20,7 @@ npm run report           # HTML 테스트 리포트 보기
 tests/e2e/
 ├── package.json           # npm 스크립트
 ├── playwright.config.ts   # Playwright 설정 (workers: 3, rate limiting OFF)
-├── global-setup.ts        # 34개 테스트 계정 로그인 + 세션 저장
+├── global-setup.ts        # 55개 테스트 계정 로그인 + 세션 저장
 ├── global-teardown.ts     # DB 리셋 (MongoDB + Redis)
 ├── helpers/
 │   ├── auth.ts            # 계정 정보, 로그인 헬퍼, 브라우저 컨텍스트
@@ -34,7 +34,12 @@ tests/e2e/
     ├── series-forfeit.spec.ts         # Series Forfeit 테스트 (Test 9~10)
     ├── series-finished.spec.ts        # Finished Page + Rematch 테스트 (Test 11)
     ├── series-pool-exhaustion.spec.ts # Pool Exhaustion → Draw 테스트 (Test 17)
-    └── series-resting.spec.ts         # Resting Phase 테스트 (Test 18~19)
+    ├── series-resting.spec.ts         # Resting Phase 테스트 (Test 18~19)
+    ├── series-nostart.spec.ts         # NoStart 테스트 (Test 20~21)
+    ├── opening-pool-customize.spec.ts # Opening Pool 커스터마이즈 테스트 (Test 22)
+    ├── series-reconnect-banner.spec.ts # Reconnection 배너 테스트 (Test 26)
+    ├── series-lobby.spec.ts           # Lobby 매칭 테스트 (Test 27)
+    └── series-ai.spec.ts             # AI Opening Duel 테스트 (Test 28)
 ```
 
 ## 테스트 계정 생성
@@ -102,6 +107,7 @@ const users = [
 | 20 | elena | - | - | - | - | - | - | Opening Pool 페이지 접근 + 렌더링 확인 |
 | 21 | kwame | sonia | ✅/✅ | ✅/✅ | 1 + selecting timeout | 2 | - | Selecting timeout → 랜덤 선택, game 2 시작 |
 | 22 | tomoko | renata | ✅/✅ | ✅/✅ | 0 + resting both DC | 1 | abort | Resting 양측 DC → 시리즈 abort |
+| 27 | elizabeth | dae | ✅/✅ | ✅/✅ | 0 (1 game only) | 1 | active | Lobby hook 매칭 → 시리즈 생성 |
 
 ## Pick/Ban 행동 타입
 
@@ -237,6 +243,10 @@ test.describe('Test 0: elena vs hans', () => {
 | 19 | margarita | yevgeny | Resting timeout Test 19 | series-resting |
 | 23 | kwame | sonia | Selecting timeout Test 21 | series-disconnect |
 | 24 | tomoko | renata | Resting both DC Test 22 | series-disconnect |
+| 25 | yarah | suresh | Resting 1 DC Test 25 | series-disconnect |
+| 26 | frances | emmanuel | Reconnect banner Test 26 | series-reconnect-banner |
+| 27 | elizabeth | dae | Lobby matching Test 27 | series-lobby |
+| Solo | mateo | - | AI Opening Duel Test 28 | series-ai |
 
 > **중요**: 각 쌍은 하나의 테스트에서만 사용 (병렬 충돌 방지)
 
@@ -246,7 +256,8 @@ test.describe('Test 0: elena vs hans', () => {
 
 | 함수 | 설명 |
 |:---|:---|
-| `createSeriesChallenge(p1, p2, p2Name)` | 로비에서 시리즈 생성 → 픽 페이지까지. `seriesId` 반환 |
+| `createSeriesChallenge(p1, p2, p2Name)` | Friend Challenge로 시리즈 생성 → 픽 페이지까지. `seriesId` 반환 |
+| `createSeriesViaLobby(p1, p2, p1Name, p2Name, screenshot?)` | "Opening Duel with Anyone" 로비 hook 매칭으로 시리즈 생성. localStorage로 rating range 확장 |
 | `completeBanPickPhase(p1, p2, opts?, screenshot?)` | Pick→Ban→RandomSelecting→Game 자동 진행 |
 | `selectOpenings(page, count)` | 비선택/비비활성 오프닝 N개 클릭 |
 | `confirm(page)` | Pick/Ban 확인 버튼 클릭 |
