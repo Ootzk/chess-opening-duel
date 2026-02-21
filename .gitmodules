@@ -3,10 +3,10 @@
 	url = https://github.com/Ootzk/chess-opening-duel-lila.git
 [submodule "repos/chessground"]
 	path = repos/chessground
-	url = https://github.com/Ootzk/chess-opening-duel-chessground.git
+	url = https://github.com/lichess-org/chessground.git
 [submodule "repos/scalachess"]
 	path = repos/scalachess
-	url = https://github.com/Ootzk/chess-opening-duel-scalachess.git
+	url = https://github.com/lichess-org/scalachess.git
 [submodule "repos/lila-db-seed"]
 	path = repos/lila-db-seed
 	url = https://github.com/Ootzk/chess-opening-duel-db-seed.git
