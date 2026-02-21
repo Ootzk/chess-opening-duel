@@ -82,6 +82,8 @@ const users = [
   // Pair 26: frances + emmanuel (Reconnection banner on home page)
   { username: 'frances', password: 'password', file: '.auth/frances.json' },
   { username: 'emmanuel', password: 'password', file: '.auth/emmanuel.json' },
+  // Solo: mateo (AI Opening Duel)
+  { username: 'mateo', password: 'password', file: '.auth/mateo.json' },
 ];
 
 async function loginWithRetry(
