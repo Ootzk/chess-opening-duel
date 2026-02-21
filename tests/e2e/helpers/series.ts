@@ -602,6 +602,100 @@ export async function createSeriesChallenge(
 }
 
 /**
+ * Create series via "Opening Duel with Anyone" lobby hook matching.
+ * Both players click the button sequentially → server auto-matches → WS redirect to /series/{id}/pick.
+ * No friend search or challenge accept step needed.
+ */
+export async function createSeriesViaLobby(
+  player1: Page,
+  player2: Page,
+  p1Username: string,
+  p2Username: string,
+  screenshotFn?: ScreenshotFn,
+): Promise<string> {
+  const anyoneBtn = '.lobby__start .lobby__start__button--openingDuelAnyone';
+  const modalSubmit = '.game-setup .lobby__start__button--openingDuelAnyone';
+
+  // Widen rating range to ±1500 via localStorage (before modal reads store)
+  const widenRatingRange = async (page: Page, username: string) => {
+    await page.evaluate((u) => {
+      const key = `lobby.setup.${u}.openingDuelAnyone`;
+      const raw = localStorage.getItem(key);
+      const store = raw ? JSON.parse(raw) : {};
+      store.ratingMin = -1500;
+      store.ratingMax = 1500;
+      localStorage.setItem(key, JSON.stringify(store));
+    }, username);
+  };
+
+  // Step 1: Navigate both to lobby and clean up
+  await Promise.all([player1.goto('/'), player2.goto('/')]);
+  await Promise.all([
+    player1.waitForLoadState('networkidle'),
+    player2.waitForLoadState('networkidle'),
+  ]);
+  await abortExistingGames(player1);
+  await abortExistingGames(player2);
+
+  // Step 2: P1 — widen rating range, then create hook
+  await player1.goto('/');
+  await player1.waitForLoadState('networkidle');
+  await widenRatingRange(player1, p1Username);
+
+  await expect(player1.locator(anyoneBtn)).toBeVisible({ timeout: 5000 });
+  await player1.locator(anyoneBtn).click();
+
+  const modal1 = player1.locator('.game-setup');
+  await expect(modal1).toBeVisible({ timeout: 5000 });
+  if (screenshotFn) await screenshotFn('p1-modal', player1);
+  await player1.locator(modalSubmit).click();
+
+  // Wait for modal to close (hook created, waiting for match)
+  await expect(modal1).not.toBeVisible({ timeout: 10000 });
+  if (screenshotFn) await screenshotFn('p1-hook-waiting', player1);
+
+  // Step 3: P2 — widen rating range, then create hook (server will auto-match)
+  await player2.goto('/');
+  await player2.waitForLoadState('networkidle');
+  await widenRatingRange(player2, p2Username);
+
+  await expect(player2.locator(anyoneBtn)).toBeVisible({ timeout: 5000 });
+  await player2.locator(anyoneBtn).click();
+
+  const modal2 = player2.locator('.game-setup');
+  await expect(modal2).toBeVisible({ timeout: 5000 });
+  if (screenshotFn) await screenshotFn('p2-modal', player2);
+  await player2.locator(modalSubmit).click();
+
+  // Step 4: Both wait for redirect to /series/{id}/pick
+  await Promise.all([
+    player1.waitForURL(/\/series\/\w+\/pick/, { timeout: 30000 }),
+    player2.waitForURL(/\/series\/\w+\/pick/, { timeout: 30000 }),
+  ]);
+  if (screenshotFn) {
+    await screenshotFn('p1-redirected', player1);
+    await screenshotFn('p2-redirected', player2);
+  }
+
+  // Step 5: Extract and verify series ID
+  const match1 = player1.url().match(/\/series\/(\w+)/);
+  const match2 = player2.url().match(/\/series\/(\w+)/);
+  const seriesId = match1?.[1] || '';
+
+  if (!seriesId || seriesId !== match2?.[1]) {
+    throw new Error(`Series ID mismatch: P1=${match1?.[1]}, P2=${match2?.[1]}`);
+  }
+
+  // Wait for pick page to load on both
+  await Promise.all([
+    expect(player1.locator(selectors.seriesPick).first()).toBeVisible({ timeout: 10000 }),
+    expect(player2.locator(selectors.seriesPick).first()).toBeVisible({ timeout: 10000 }),
+  ]);
+
+  return seriesId;
+}
+
+/**
  * Alternative: Create series via direct POST request (faster for testing)
  * Uses the Opening Duel API directly
  */
