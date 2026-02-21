@@ -8,12 +8,11 @@ ENV COREPACK_INTEGRITY_KEYS=0
 RUN apt update \
     && apt install -y git \
     && apt clean \
-    && git config --global --add safe.directory /chessground \
     && git config --global --add safe.directory /lila \
     && git config --global --add safe.directory /pgn-viewer \
     && corepack enable \
     && pnpm config set store-dir /.pnpm-store \
-    # needed for ui, chessground images
+    # needed for ui image
     && mkdir -p /.cache && chmod -R 777 /.cache \
     # needed for api_docs
     && mkdir -p /.npm && chmod -R 777 /.npm
