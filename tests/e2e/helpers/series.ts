@@ -380,7 +380,7 @@ export async function verifyReconnectionBanner(
 // Lobby and Setup selectors
 export const lobbySelectors = {
   // Lobby table buttons
-  openingDuelBtn: '.lobby__app__content button:has-text("Opening Duel"), .lobby__start button:has-text("Opening Duel")',
+  openingDuelBtn: '.lobby__start .lobby__start__button--openingDuel',
 
   // Setup modal
   setupModal: '.game-setup, .modal-content',
@@ -471,8 +471,8 @@ export async function createSeriesChallenge(
   await player1.waitForLoadState('networkidle');
   await abortExistingGames(player1);
 
-  // Step 2: Click "Opening Duel" button in lobby
-  const openingDuelBtn = player1.locator('.lobby__start button:has-text("Opening Duel")').first();
+  // Step 2: Click "Opening Duel with Friend" button in lobby
+  const openingDuelBtn = player1.locator('.lobby__start .lobby__start__button--openingDuel');
   await expect(openingDuelBtn).toBeVisible({ timeout: 5000 });
   await openingDuelBtn.click();
 
