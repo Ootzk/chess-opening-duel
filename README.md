@@ -73,7 +73,7 @@ First to **2.5 points** with a lead wins the series. Tied at 2.5–2.5? **Sudden
 
 ## Opening Pool
 
-10 openings from classical chess theory:
+Each player has a personal pool of **5–10 openings** used for the ban/pick phase. New accounts start with 10 default openings:
 
 | ECO | Opening | Chooser Plays |
 |-----|---------|:---:|
@@ -87,6 +87,25 @@ First to **2.5 points** with a lead wins the series. Tied at 2.5–2.5? **Sudden
 | A56 | [Benoni Defense](https://lichess.org/opening/Benoni_Defense) | Black |
 | B19 | [Caro-Kann Defense: Classical Variation](https://lichess.org/opening/Caro-Kann_Defense_Classical_Variation) | Black |
 | C18 | [French Defense: Winawer Variation](https://lichess.org/opening/French_Defense_Winawer_Variation) | Black |
+
+### Customizing Your Pool
+
+Players can add or remove openings from the **Opening Explorer** (`/opening`). Your current pool is displayed as a table at the top of the page.
+
+| Pool Table | Add Buttons |
+|:---:|:---:|
+| ![Pool Table](docs/screenshots/07-pool-table.png) | ![Add to Pool](docs/screenshots/08-add-to-pool.png) |
+
+Navigate to any opening page and use the **"Play as White" / "Play as Black"** buttons to add it to your pool.
+
+**Requirements for adding an opening:**
+
+- Must be an **exact opening position** — pages showing extra moves beyond a defined opening (e.g., "Italian Game: Giuoco Piano, Greco's Attack, Nxe4, O-O") are not eligible
+- Must have a **balanced win rate** — openings where the white/black win rate differs by 15 percentage points or more are blocked
+- Pool size must be **under 10** (the maximum)
+- The same opening + color combination must **not already be in your pool**
+
+**Removing openings:** Click the delete button next to any opening in your pool table (visible on `/opening` pages). The pool must keep at least 5 openings.
 
 ## Quick Start
 
