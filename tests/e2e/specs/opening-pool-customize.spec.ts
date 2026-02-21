@@ -74,16 +74,6 @@ function makeScreenshot(testInfo: typeof test) {
 test.describe('Test 23: Pool Customize → Pick Phase Verification', () => {
   test.beforeAll(() => {
     cleanupPairData(pairUsers);
-    // Also clean up opening_pool for ramesh so we start fresh
-    try {
-      const { execSync } = require('child_process');
-      execSync(
-        `docker exec chess-opening-duel-mongodb-1 mongosh lichess --quiet --eval 'db.opening_pool.deleteMany({_id: {$in: ${JSON.stringify(pairUsers)}}})'`,
-        { encoding: 'utf-8', timeout: 10000 }
-      );
-    } catch {
-      // Ignore cleanup errors
-    }
   });
 
   test('[Test 23] 커스텀 pool로 시리즈 생성 시 Pick Phase에 새 오프닝 표시', async ({ browser }) => {
@@ -97,6 +87,9 @@ test.describe('Test 23: Pool Customize → Pick Phase Verification', () => {
       await test.step('P1: /opening 페이지에서 기본 pool 확인 (10개)', async () => {
         await player1.goto('/opening');
         await player1.waitForLoadState('networkidle');
+
+        const poolTable = player1.locator('.opening__pool');
+        await expect(poolTable).toBeVisible();
 
         const rows = player1.locator('.opening__pool__row');
         await expect(rows).toHaveCount(10);
