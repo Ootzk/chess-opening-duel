@@ -27,7 +27,7 @@ COPY repos/lila-db-seed /lila-db-seed
 COPY scripts/reset-db.sh /scripts/reset-db.sh
 WORKDIR /lila-db-seed
 
-RUN pip3 install --break-system-packages -r spamdb/requirements.txt
+RUN pip3 install -r spamdb/requirements.txt
 
 RUN mkdir /seeded \
     && mongod --fork --logpath /var/log/mongodb/mongod.log --dbpath /seeded \

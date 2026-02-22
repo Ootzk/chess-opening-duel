@@ -87,6 +87,7 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
+            type=semver,pattern={{version}}
             type=raw,prefix=lila-,value=${{ steps.build_vars.outputs.branch }}
             type=raw,value=latest
 
