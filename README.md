@@ -59,6 +59,12 @@ After the final game, the resting period shows a **"View result"** button instea
 
 First to **2.5 points** with a lead wins. If tied after 5 games (e.g. 2.5–2.5), sudden death games continue until one player pulls ahead.
 
+## Game Modes
+
+- **Opening Duel with a Friend** — Challenge a specific player from the lobby
+- **Opening Duel with Anyone** — Register a hook and get auto-matched with an opponent of similar rating
+- **Opening Duel with Computer** — Play against Stockfish AI (adjustable difficulty)
+
 ## Scoring
 
 Standard chess scoring applies to each game:
@@ -106,6 +112,13 @@ Navigate to any opening page and use the **"Play as White" / "Play as Black"** b
 - The same opening + color combination must **not already be in your pool**
 
 **Removing openings:** Click the delete button next to any opening in your pool table (visible on `/opening` pages). The pool must keep at least 5 openings.
+
+## Additional Features
+
+- **How to Play** — Interactive tutorial tab in the lobby for new players
+- **Sound Effects** — Audio cues for phase transitions, selections, and confirmations
+- **Reconnection Banner** — Automatic detection and prompt to rejoin an in-progress series
+- **Login Required** — Anonymous visitors are redirected to a standalone login page
 
 ## Quick Start
 
