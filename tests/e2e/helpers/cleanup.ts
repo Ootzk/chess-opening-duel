@@ -11,11 +11,15 @@ export function cleanupPairData(users: string[]): void {
   try {
     const mongoCommand = `
       db.game5.deleteMany({ "players.user.id": { $in: ${JSON.stringify(users)} } });
-      db.series.deleteMany({ "players.userId": { $in: ${JSON.stringify(users)} } });
+      db.series.deleteMany({ $or: [
+        { "p0.u": { $in: ${JSON.stringify(users)} } },
+        { "p1.u": { $in: ${JSON.stringify(users)} } }
+      ]});
       db.challenge.deleteMany({ $or: [
         { "challenger.user.id": { $in: ${JSON.stringify(users)} } },
         { "destUser.id": { $in: ${JSON.stringify(users)} } }
       ]});
+      db.opening_pool.deleteMany({ "_id": { $in: ${JSON.stringify(users)} } });
     `.replace(/\n/g, ' ');
     execSync(
       `docker exec chess-opening-duel-mongodb-1 mongosh lichess --quiet --eval '${mongoCommand}'`,

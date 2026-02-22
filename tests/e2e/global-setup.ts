@@ -55,6 +55,38 @@ const users = [
   // Pair 17: dmitry + milena (pool exhaustion → series draw)
   { username: 'dmitry', password: 'password', file: '.auth/dmitry.json' },
   { username: 'milena', password: 'password', file: '.auth/milena.json' },
+  // Pair 18: yaroslava + ekaterina (resting phase - both confirm)
+  { username: 'yaroslava', password: 'password', file: '.auth/yaroslava.json' },
+  { username: 'ekaterina', password: 'password', file: '.auth/ekaterina.json' },
+  // Pair 19: margarita + yevgeny (resting phase - timeout)
+  { username: 'margarita', password: 'password', file: '.auth/margarita.json' },
+  { username: 'yevgeny', password: 'password', file: '.auth/yevgeny.json' },
+  // Pair 20: yunel + idris (NoStart - white doesn't move)
+  { username: 'yunel', password: 'password', file: '.auth/yunel.json' },
+  { username: 'idris', password: 'password', file: '.auth/idris.json' },
+  // Pair 21: aleksandr + veer (NoStart - white moves, black doesn't)
+  { username: 'aleksandr', password: 'password', file: '.auth/aleksandr.json' },
+  { username: 'veer', password: 'password', file: '.auth/veer.json' },
+  // Pair 22: ramesh + nushi (Pool customization → verify custom openings in pick phase)
+  { username: 'ramesh', password: 'password', file: '.auth/ramesh.json' },
+  { username: 'nushi', password: 'password', file: '.auth/nushi.json' },
+  // Pair 23: kwame + sonia (Selecting timeout → random pick)
+  { username: 'kwame', password: 'password', file: '.auth/kwame.json' },
+  { username: 'sonia', password: 'password', file: '.auth/sonia.json' },
+  // Pair 24: tomoko + renata (Resting both DC → series abort)
+  { username: 'tomoko', password: 'password', file: '.auth/tomoko.json' },
+  { username: 'renata', password: 'password', file: '.auth/renata.json' },
+  // Pair 25: yarah + suresh (Resting 1 DC → series forfeit)
+  { username: 'yarah', password: 'password', file: '.auth/yarah.json' },
+  { username: 'suresh', password: 'password', file: '.auth/suresh.json' },
+  // Pair 26: frances + emmanuel (Reconnection banner on home page)
+  { username: 'frances', password: 'password', file: '.auth/frances.json' },
+  { username: 'emmanuel', password: 'password', file: '.auth/emmanuel.json' },
+  // Pair 27: elizabeth + dae (Lobby matching - Opening Duel with Anyone)
+  { username: 'elizabeth', password: 'password', file: '.auth/elizabeth.json' },
+  { username: 'dae', password: 'password', file: '.auth/dae.json' },
+  // Solo: mateo (AI Opening Duel)
+  { username: 'mateo', password: 'password', file: '.auth/mateo.json' },
 ];
 
 async function loginWithRetry(

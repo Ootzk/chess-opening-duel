@@ -26,13 +26,15 @@ flowchart LR
 
     subgraph Game["Game Loop"]
         RS[Random Select] --> PLAY[Playing]
-        PLAY -->|draw| RS
-        PLAY -->|winner| SEL[Loser Selects]
+        PLAY -->|draw| REST[Resting]
+        PLAY -->|winner| REST
+        REST -->|next game<br/>draw| RS
+        REST -->|next game<br/>winner| SEL[Loser Selects]
         SEL --> PLAY
     end
 
     BAN --> RS
-    PLAY -->|series done| FIN[Finished]
+    REST -->|series done| FIN[Finished]
 ```
 
 ### 1. Pick Phase (30s)
@@ -45,13 +47,23 @@ Each player bans 2 of their opponent's picks. After bans, each player has 3 open
 
 ### 3. Playing
 
-After each game, the next opening is determined by the result:
+After each game ends, a **30-second resting period** gives both players time to review the game. Both can click to proceed early, or wait for the timer to expire.
+
+The next opening is then determined by the result:
 - **Draw** — randomly selected from the combined remaining pool
 - **Winner decided** — the loser picks from their own remaining pool
+
+After the final game, the resting period shows a **"View result"** button instead, leading to the finished page.
 
 ### 4. Series Result
 
 First to **2.5 points** with a lead wins. If tied after 5 games (e.g. 2.5–2.5), sudden death games continue until one player pulls ahead.
+
+## Game Modes
+
+- **Opening Duel with a Friend** — Challenge a specific player from the lobby
+- **Opening Duel with Anyone** — Register a hook and get auto-matched with an opponent of similar rating
+- **Opening Duel with Computer** — Play against Stockfish AI (adjustable difficulty)
 
 ## Scoring
 
@@ -67,7 +79,7 @@ First to **2.5 points** with a lead wins the series. Tied at 2.5–2.5? **Sudden
 
 ## Opening Pool
 
-10 openings from classical chess theory:
+Each player has a personal pool of **5–10 openings** used for the ban/pick phase. New accounts start with 10 default openings:
 
 | ECO | Opening | Chooser Plays |
 |-----|---------|:---:|
@@ -81,6 +93,32 @@ First to **2.5 points** with a lead wins the series. Tied at 2.5–2.5? **Sudden
 | A56 | [Benoni Defense](https://lichess.org/opening/Benoni_Defense) | Black |
 | B19 | [Caro-Kann Defense: Classical Variation](https://lichess.org/opening/Caro-Kann_Defense_Classical_Variation) | Black |
 | C18 | [French Defense: Winawer Variation](https://lichess.org/opening/French_Defense_Winawer_Variation) | Black |
+
+### Customizing Your Pool
+
+Players can add or remove openings from the **Opening Explorer** (`/opening`). Your current pool is displayed as a table at the top of the page.
+
+| Pool Table | Add Buttons |
+|:---:|:---:|
+| ![Pool Table](docs/screenshots/07-pool-table.png) | ![Add to Pool](docs/screenshots/08-add-to-pool.png) |
+
+Navigate to any opening page and use the **"Play as White" / "Play as Black"** buttons to add it to your pool.
+
+**Requirements for adding an opening:**
+
+- Must be an **exact opening position** — pages showing extra moves beyond a defined opening (e.g., "Italian Game: Giuoco Piano, Greco's Attack, Nxe4, O-O") are not eligible
+- Must have a **balanced win rate** — openings where the white/black win rate differs by 15 percentage points or more are blocked
+- Pool size must be **under 10** (the maximum)
+- The same opening + color combination must **not already be in your pool**
+
+**Removing openings:** Click the delete button next to any opening in your pool table (visible on `/opening` pages). The pool must keep at least 5 openings.
+
+## Additional Features
+
+- **How to Play** — Interactive tutorial tab in the lobby for new players
+- **Sound Effects** — Audio cues for phase transitions, selections, and confirmations
+- **Reconnection Banner** — Automatic detection and prompt to rejoin an in-progress series
+- **Login Required** — Anonymous visitors are redirected to a standalone login page
 
 ## Quick Start
 

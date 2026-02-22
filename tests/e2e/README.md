@@ -20,19 +20,26 @@ npm run report           # HTML 테스트 리포트 보기
 tests/e2e/
 ├── package.json           # npm 스크립트
 ├── playwright.config.ts   # Playwright 설정 (workers: 3, rate limiting OFF)
-├── global-setup.ts        # 34개 테스트 계정 로그인 + 세션 저장
+├── global-setup.ts        # 55개 테스트 계정 로그인 + 세션 저장
 ├── global-teardown.ts     # DB 리셋 (MongoDB + Redis)
 ├── helpers/
 │   ├── auth.ts            # 계정 정보, 로그인 헬퍼, 브라우저 컨텍스트
 │   ├── scenarios.ts       # 테스트 시나리오 매트릭스 (PickBanBehavior, testScenarios)
 │   └── series.ts          # 시리즈 조작 헬퍼 (selectOpenings, confirm 등)
 └── specs/
-    ├── series-banpick.spec.ts     # 밴픽 플로우 테스트 (Test 0~6)
-    ├── series-countdown.spec.ts   # Countdown 테스트 (Test 12~13)
-    ├── series-disconnect.spec.ts  # Disconnect/Abort 테스트 (Test 7~8)
-    ├── series-forfeit.spec.ts          # Series Forfeit 테스트 (Test 9~10)
-    ├── series-finished.spec.ts         # Finished Page + Rematch 테스트 (Test 11)
-    └── series-pool-exhaustion.spec.ts  # Pool Exhaustion → Draw 테스트 (Test 17)
+    ├── opening-pool.spec.ts           # Opening Pool 페이지 테스트 (Test 20)
+    ├── series-banpick.spec.ts         # 밴픽 플로우 테스트 (Test 0~6)
+    ├── series-countdown.spec.ts       # Countdown 테스트 (Test 12~13)
+    ├── series-disconnect.spec.ts      # Disconnect/Abort 테스트 (Test 7~8, 14~15)
+    ├── series-forfeit.spec.ts         # Series Forfeit 테스트 (Test 9~10)
+    ├── series-finished.spec.ts        # Finished Page + Rematch 테스트 (Test 11)
+    ├── series-pool-exhaustion.spec.ts # Pool Exhaustion → Draw 테스트 (Test 17)
+    ├── series-resting.spec.ts         # Resting Phase 테스트 (Test 18~19)
+    ├── series-nostart.spec.ts         # NoStart 테스트 (Test 20~21)
+    ├── opening-pool-customize.spec.ts # Opening Pool 커스터마이즈 테스트 (Test 22)
+    ├── series-reconnect-banner.spec.ts # Reconnection 배너 테스트 (Test 26)
+    ├── series-lobby.spec.ts           # Lobby 매칭 테스트 (Test 27)
+    └── series-ai.spec.ts             # AI Opening Duel 테스트 (Test 28)
 ```
 
 ## 테스트 계정 생성
@@ -92,9 +99,15 @@ const users = [
 | 11 | patricia | adriana | ✅/✅ | ✅/✅ | 1 - 1 - 1 | 3 | 3-0 | Finished page + rematch |
 | 12 | mary | jose | ✅/✅ | ✅/✅ | - | 1 | - | Countdown 표시 + 감소 |
 | 13 | iryna | pedro | ✅/✅ | ✅/✅ | - | 1 | - | Countdown cancel + 재시작 |
-| 14 | aaron | jacob | ✅/✅ | ✅/✅ | disconnect(game) | 1 | forfeit | 게임 중 disconnect → forfeit |
-| 15 | svetlana | qing | ✅/✅ | ✅/✅ | 0 - 0 + disconnect | 3 | forfeit | 0-2 후 game 3 disconnect → forfeit |
+| 14 | aaron | jacob | ✅/✅ | ✅/✅ | disconnect(game) | 1 | 1-0 | 게임 중 disconnect → game loss, series continues |
+| 15 | svetlana | qing | ✅/✅ | ✅/✅ | 0 - 0 + disconnect | 3 | 1-2 | 0-2 후 game 3 disconnect → game loss, series continues |
 | 17 | dmitry | milena | ✅/✅ | ✅/✅ | ½ - ½ - ½ - ½ - ½ - ½ | 6 | 3-3 draw | 풀 소진 → 시리즈 Draw |
+| 18 | yaroslava | ekaterina | ✅/✅ | ✅/✅ | P2 resign + resting | 2 | - | Resting: confirm→cancel→re-confirm→countdown |
+| 19 | margarita | yevgeny | ✅/✅ | ✅/✅ | P1 resign + resting | 2 | - | Resting: confirm→cancel→30s timeout |
+| 20 | elena | - | - | - | - | - | - | Opening Pool 페이지 접근 + 렌더링 확인 |
+| 21 | kwame | sonia | ✅/✅ | ✅/✅ | 1 + selecting timeout | 2 | - | Selecting timeout → 랜덤 선택, game 2 시작 |
+| 22 | tomoko | renata | ✅/✅ | ✅/✅ | 0 + resting both DC | 1 | abort | Resting 양측 DC → 시리즈 abort |
+| 27 | elizabeth | dae | ✅/✅ | ✅/✅ | 0 (1 game only) | 1 | active | Lobby hook 매칭 → 시리즈 생성 |
 
 ## Pick/Ban 행동 타입
 
@@ -201,9 +214,9 @@ test.describe('Test 0: elena vs hans', () => {
 
 - **병렬 실행**: 12개 테스트가 독립적 → `workers: 3`으로 안정적 병렬 실행
 - **API 기반 검증**: UI 대신 Series API로 상태 확인 (`isSeriesFinished`)
-- **게임 상태 조회**: Board API streaming으로 정확한 FEN 조회 (`/api/board/game/stream/{gameId}`)
+- **게임 상태 조회**: Game Export API로 정확한 FEN 조회 (`/game/export/{gameId}`)
 - **스크린샷**: 주요 시점마다 `test.info().attach()`로 첨부
-- **Disconnect 테스트**: `page.close()`로 WS 연결 끊김 시뮬레이션 → 30s timeout 후 abort 검증
+- **Disconnect 테스트**: `page.close()`로 WS 연결 끊김 시뮬레이션 → Pick/Ban: 30s timeout 후 abort 검증, Playing: claim victory 후 game loss 검증
 
 ## 테스트 계정 쌍 목록
 
@@ -226,6 +239,14 @@ test.describe('Test 0: elena vs hans', () => {
 | 15 | aaron | jacob | Game Disconnect Test 14 | series-disconnect |
 | 16 | svetlana | qing | Game Disconnect Test 15 | series-disconnect |
 | 17 | dmitry | milena | Pool Exhaustion Test 17 | series-pool-exhaustion |
+| 18 | yaroslava | ekaterina | Resting confirm Test 18 | series-resting |
+| 19 | margarita | yevgeny | Resting timeout Test 19 | series-resting |
+| 23 | kwame | sonia | Selecting timeout Test 21 | series-disconnect |
+| 24 | tomoko | renata | Resting both DC Test 22 | series-disconnect |
+| 25 | yarah | suresh | Resting 1 DC Test 25 | series-disconnect |
+| 26 | frances | emmanuel | Reconnect banner Test 26 | series-reconnect-banner |
+| 27 | elizabeth | dae | Lobby matching Test 27 | series-lobby |
+| Solo | mateo | - | AI Opening Duel Test 28 | series-ai |
 
 > **중요**: 각 쌍은 하나의 테스트에서만 사용 (병렬 충돌 방지)
 
@@ -235,7 +256,8 @@ test.describe('Test 0: elena vs hans', () => {
 
 | 함수 | 설명 |
 |:---|:---|
-| `createSeriesChallenge(p1, p2, p2Name)` | 로비에서 시리즈 생성 → 픽 페이지까지. `seriesId` 반환 |
+| `createSeriesChallenge(p1, p2, p2Name)` | Friend Challenge로 시리즈 생성 → 픽 페이지까지. `seriesId` 반환 |
+| `createSeriesViaLobby(p1, p2, p1Name, p2Name, screenshot?)` | "Opening Duel with Anyone" 로비 hook 매칭으로 시리즈 생성. localStorage로 rating range 확장 |
 | `completeBanPickPhase(p1, p2, opts?, screenshot?)` | Pick→Ban→RandomSelecting→Game 자동 진행 |
 | `selectOpenings(page, count)` | 비선택/비비활성 오프닝 N개 클릭 |
 | `confirm(page)` | Pick/Ban 확인 버튼 클릭 |
@@ -246,12 +268,13 @@ test.describe('Test 0: elena vs hans', () => {
 
 | 함수 | 설명 |
 |:---|:---|
-| `playBothMoves(p1, p2, user1, user2)` | 양측 1수씩 Board API로 진행 (turn 자동 감지) |
+| `playBothMoves(p1, p2, user1, user2)` | 양측 1수씩 UI 클릭으로 진행 (turn 자동 감지) |
 | `playOneGame(p1, p2, user1, user2, result)` | 양측 1수 + result 실행. `result`: `'p1-resign'` / `'p2-resign'` / `'draw'` |
-| `makeAnyMove(page, username?)` | Board API로 아무 합법수 1수 진행 |
-| `makeMoveViaApi(page, username, uci)` | Board API로 특정 UCI 수 진행. token: `lip_{username}` |
-| `resignGame(page, username)` | Board API로 resign. **양측 1수 이상 필요** |
-| `sendDrawViaApi(page, username)` | Board API로 draw 요청. 양측 호출 시 무승부 |
+| `makeAnyMove(page)` | 아무 합법수 1수를 보드 클릭으로 진행 |
+| `makeMoveViaUI(page, from, to)` | 특정 수를 보드 클릭으로 진행 (click-click 패턴) |
+| `resignGame(page)` | UI 버튼으로 resign. **양측 1수 이상 필요** |
+| `offerDrawViaUI(page)` | UI 버튼으로 draw 제안 (제안자) |
+| `acceptDrawViaUI(page)` | UI 버튼으로 draw 수락 (수락자) |
 | `waitForNextGame(p1, p2, null, prevGameId)` | 게임 종료 후 다음 게임 대기 (Selecting/RandomSelecting 자동 처리) |
 
 ### 시리즈 상태 확인
@@ -282,6 +305,15 @@ test.describe('Test 0: elena vs hans', () => {
 | `waitForCountdownGone(page, timeout?)` | 카운트다운 텍스트 사라짐 대기 |
 | `verifyCountdownDecrements(page, timeout?)` | 카운트다운 감소 검증. `{ initial, after }` 반환 |
 
+### Resting Phase 관련
+
+| 함수 | 설명 |
+|:---|:---|
+| `waitForRestingUI(page, timeout?)` | Resting UI (`.follow-up.series-rest`) 표시 대기 |
+| `confirmNextInResting(page, timeout?)` | "Confirm"/"View result" 버튼 클릭 (다음 진행 확인) |
+| `cancelNextInResting(page, timeout?)` | "Cancel" 버튼 클릭 (확인 취소) |
+| `getRestingTimeLeft(page)` | 타이머에서 남은 초 파싱 |
+
 ### Finished Page 관련
 
 | 함수 | 설명 |
@@ -309,6 +341,18 @@ test.describe('Test 0: elena vs hans', () => {
 .series-pick.selecting-waiting      # Selecting에서 패자 대기 화면
 .series-pick__opponent-status       # 상대 상태 (.ready / .waiting / .disconnected)
 .series-pick__countdown-text       # 카운트다운 텍스트 ("Ban phase starting in 3..." / "Game N starting in 3...")
+```
+
+### Resting Phase - 게임 페이지 (`selectors`)
+
+```
+.follow-up.series-rest                          # Resting UI 컨테이너 (게임 종료 위젯 내)
+button.button-green.series-rest__confirm        # "Confirm" 버튼 (비마지막: "Confirm", 마지막: "View result")
+button.button-metal.series-rest__cancel         # "Cancel" 버튼 (확인 취소)
+.series-rest__timer                             # 타이머 (비마지막: "Next game starts in 28", 마지막: "Results in 28")
+.series-rest__opponent-status                   # 상대 상태 ("Waiting for opponent...")
+.series-rest__opponent-status.ready             # 상대 Ready ("Opponent is Ready!")
+.series-rest__timer:has-text("Game starting in") # 카운트다운 (비마지막: "Game starting in 3...", 마지막: "Showing results in 3...")
 ```
 
 ### 게임 페이지 (`gameSelectors`)
@@ -382,33 +426,34 @@ a.series-finished__home                    # Home 버튼
 }
 ```
 
-> **참고**: `score`는 내부 값 (실제 점수 × 2). `displayScore`는 `score/2` (API에서 자동 변환)
+> **참고**: `score`는 표시 점수 (승리=1, 무승부=0.5, 패배=0). API가 `displayScore`를 반환함 (내부 값 × 2가 아님)
 >
 > **주의**: `winner`와 `players[].index`는 **글로벌 인덱스** (POV 무관). 챌린저가 항상 player 0이 아님!
 > 플레이어 순서는 **랜덤 색상 배정**에 따라 결정됨 (`ChallengeJoiner.scala`의 `c.finalColor`).
 > 따라서 테스트에서 winner를 검증할 때 `getPlayerIndex()`로 실제 인덱스를 확인해야 함.
 
-## Board API (게임 조작)
+## Game Export API (게임 상태 조회)
 
-모든 Board API는 `Authorization: Bearer lip_{username}` 헤더 사용.
+게임 상태 조회에 Game Export API 사용 (인증 불필요).
 
 | Method | Path | 설명 |
 |:---|:---|:---|
-| GET | `/api/board/game/stream/{gameId}` | 게임 상태 스트리밍 (NDJSON). 첫 줄 = gameFull |
-| POST | `/api/board/game/{gameId}/move/{uci}` | UCI 수 진행 (e.g., `e2e4`) |
-| POST | `/api/board/game/{gameId}/resign` | 게임 resign (양측 1수 이상 필요) |
-| POST | `/api/board/game/{gameId}/draw/yes` | 무승부 요청/수락 (양측 호출 시 무승부) |
+| GET | `/game/export/{gameId}` | 게임 상태 JSON 조회 (Accept: application/json) |
 
-### gameFull 응답 (첫 스트리밍 라인)
+### 응답 예시
 
 ```json
 {
-  "initialFen": "rnbqkb1r/...",   // 또는 "startpos"
-  "state": { "moves": "e2e4 e7e5 ..." },
-  "white": { "id": "elena" },
-  "black": { "id": "hans" }
+  "initialFen": "rnbqkb1r/...",
+  "moves": "e4 e5 Nf3 ...",
+  "players": {
+    "white": { "user": { "id": "elena" } },
+    "black": { "user": { "id": "hans" } }
+  }
 }
 ```
+
+> **참고**: Board API (`/api/board/game/...`)는 Series 게임에 대해 **차단**되어 있음 (봇/엔진 방지).
 
 ## Cleanup 패턴
 

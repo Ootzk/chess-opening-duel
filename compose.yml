@@ -52,10 +52,8 @@ services:
       - LILA_TEST_MODE=${LILA_TEST_MODE:-1}
     volumes:
       - ./repos/lila:/lila
-      - ./repos/chessground:/chessground
       - ./repos/pgn-viewer:/pgn-viewer
       - ./repos/bbpPairings:/opt/bbpPairings
-      - ./repos/scalachess:/scalachess
       - ./conf/lila.conf:/lila/conf/application.conf
       - ./conf/firebase-service-account.json:/opt/firebase-service-account.json:ro
     profiles:
@@ -108,24 +106,6 @@ services:
       - ./repos/api:/api
     profiles:
       - api-docs
-
-  chessground:
-    build:
-      context: docker
-      args:
-        USER_ID: ${USER_ID:-}
-        GROUP_ID: ${GROUP_ID:-}
-      dockerfile: ui.Dockerfile
-    entrypoint: ["/bin/sh", "-c", "pnpm install && pnpm run compile && pnpx http-server -p 8080"]
-    restart: unless-stopped
-    user: ${USER_ID:-}:${GROUP_ID:-}
-    ports:
-      - 8090:8080
-    volumes:
-      - ./repos/chessground:/app
-      - ./.pnpm-store:/.pnpm-store
-    profiles:
-      - chessground
 
   pgn_viewer:
     build:
@@ -223,7 +203,6 @@ services:
       - CI=1 # to disable pnpm install prompts
     volumes:
       - ./repos/lila:/lila
-      - ./repos/chessground:/chessground
       - ./repos/pgn-viewer:/pgn-viewer
       - ./.pnpm-store:/.pnpm-store
     profiles:

@@ -60,6 +60,38 @@ export const users = {
   // Pair 17: Pool exhaustion → series draw
   dmitry: { username: 'dmitry', password: 'password', storageState: '.auth/dmitry.json' },
   milena: { username: 'milena', password: 'password', storageState: '.auth/milena.json' },
+  // Pair 18: Resting phase - both confirm quickly
+  yaroslava: { username: 'yaroslava', password: 'password', storageState: '.auth/yaroslava.json' },
+  ekaterina: { username: 'ekaterina', password: 'password', storageState: '.auth/ekaterina.json' },
+  // Pair 19: Resting phase - timeout (no confirm)
+  margarita: { username: 'margarita', password: 'password', storageState: '.auth/margarita.json' },
+  yevgeny: { username: 'yevgeny', password: 'password', storageState: '.auth/yevgeny.json' },
+  // Pair 20: NoStart - white doesn't move
+  yunel: { username: 'yunel', password: 'password', storageState: '.auth/yunel.json' },
+  idris: { username: 'idris', password: 'password', storageState: '.auth/idris.json' },
+  // Pair 21: NoStart - white moves, black doesn't
+  aleksandr: { username: 'aleksandr', password: 'password', storageState: '.auth/aleksandr.json' },
+  veer: { username: 'veer', password: 'password', storageState: '.auth/veer.json' },
+  // Pair 22: Pool customization → verify custom openings in pick phase
+  ramesh: { username: 'ramesh', password: 'password', storageState: '.auth/ramesh.json' },
+  nushi: { username: 'nushi', password: 'password', storageState: '.auth/nushi.json' },
+  // Pair 23: Selecting timeout → random pick (loser doesn't select)
+  kwame: { username: 'kwame', password: 'password', storageState: '.auth/kwame.json' },
+  sonia: { username: 'sonia', password: 'password', storageState: '.auth/sonia.json' },
+  // Pair 24: Resting both DC → series abort
+  tomoko: { username: 'tomoko', password: 'password', storageState: '.auth/tomoko.json' },
+  renata: { username: 'renata', password: 'password', storageState: '.auth/renata.json' },
+  // Pair 25: Resting 1 DC → series forfeit
+  yarah: { username: 'yarah', password: 'password', storageState: '.auth/yarah.json' },
+  suresh: { username: 'suresh', password: 'password', storageState: '.auth/suresh.json' },
+  // Pair 26: Reconnection banner on home page
+  frances: { username: 'frances', password: 'password', storageState: '.auth/frances.json' },
+  emmanuel: { username: 'emmanuel', password: 'password', storageState: '.auth/emmanuel.json' },
+  // Pair 27: Lobby matching (Opening Duel with Anyone)
+  elizabeth: { username: 'elizabeth', password: 'password', storageState: '.auth/elizabeth.json' },
+  dae: { username: 'dae', password: 'password', storageState: '.auth/dae.json' },
+  // Solo: AI Opening Duel (vs Stockfish)
+  mateo: { username: 'mateo', password: 'password', storageState: '.auth/mateo.json' },
 } as const;
 
 /**

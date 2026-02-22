@@ -34,8 +34,25 @@ export const selectors = {
   randomSelecting: '.series-pick.random-selecting',
   countdown: '.series-pick__countdown',
 
+  // Roulette animation (RandomSelecting spinning phase)
+  rouletteCard: '.series-pick__roulette-card',
+  playerBoxes: '.series-pick__player-boxes',
+
+  // Showcase (RandomSelecting result + Selecting showcase)
+  showcase: '.series-pick__selected-showcase',
+  showcaseText: '.series-pick__selected-text',
+
   // Countdown text (3-second delay after both confirm)
   countdownText: '.series-pick__countdown-text',
+
+  // Resting phase (between games, shown on round game page)
+  restingFollowUp: '.follow-up.series-rest',
+  restingConfirmBtn: 'button.button-green.series-rest__confirm',
+  restingCancelBtn: 'button.button-metal.series-rest__cancel',
+  restingTimer: '.series-rest__timer',
+  restingOpponentStatus: '.series-rest__opponent-status',
+  restingOpponentReady: '.series-rest__opponent-status.ready',
+  restingCountdown: '.series-rest__timer:has-text("Game starting in")',
 };
 
 /**
@@ -289,12 +306,81 @@ export async function verifyCountdownDecrements(page: Page, timeout = 10000): Pr
   return { initial, after };
 }
 
+// ===== Resting Phase Helpers =====
+
+/**
+ * Click "Next Game" button in the Resting phase (shown on game page after game ends).
+ * Waits for the button to appear, then clicks it.
+ */
+export async function confirmNextInResting(page: Page, timeout = 15000): Promise<void> {
+  const nextBtn = page.locator(selectors.restingConfirmBtn);
+  await expect(nextBtn).toBeVisible({ timeout });
+  await nextBtn.click();
+}
+
+/**
+ * Click "Cancel" button in the Resting phase (revoke a previous "Next Game" confirmation).
+ */
+export async function cancelNextInResting(page: Page, timeout = 5000): Promise<void> {
+  const cancelBtn = page.locator(selectors.restingCancelBtn);
+  await expect(cancelBtn).toBeVisible({ timeout });
+  await cancelBtn.click();
+}
+
+/**
+ * Wait for the Resting phase UI to appear on the game page.
+ */
+export async function waitForRestingUI(page: Page, timeout = 15000): Promise<void> {
+  await expect(page.locator(selectors.restingFollowUp)).toBeVisible({ timeout });
+}
+
+/**
+ * Get the resting timer value (seconds remaining).
+ */
+export async function getRestingTimeLeft(page: Page): Promise<number> {
+  const timer = page.locator(selectors.restingTimer);
+  const text = await timer.textContent() || '';
+  const match = text.match(/(\d+)/);
+  return match ? parseInt(match[1], 10) : NaN;
+}
+
+// ===== Reconnection Banner =====
+
+/**
+ * Verify the reconnection banner on home page during an active series.
+ * Navigates to home → verifies banner elements → clicks "Return to Series".
+ * Caller should verify the destination page after this returns.
+ */
+export async function verifyReconnectionBanner(
+  page: Page,
+  seriesId: string,
+  screenshotFn?: ScreenshotFn,
+): Promise<void> {
+  await page.goto('/');
+  await page.waitForLoadState('networkidle');
+  if (screenshotFn) await screenshotFn('reconnect-home', page);
+
+  // Verify banner
+  await expect(page.locator('.lobby__nope')).toBeVisible({ timeout: 10000 });
+  await expect(page.locator('text="Hang on!"')).toBeVisible();
+  await expect(page.locator('text="A series is in progress with"')).toBeVisible();
+  await expect(page.locator('text="Return to Series"')).toBeVisible();
+  await expect(page.locator('text="Forfeit the Series"')).toBeVisible();
+  if (screenshotFn) await screenshotFn('reconnect-banner', page);
+
+  // Click "Return to Series" → pickPage controller redirects by phase
+  await page.locator('a:has-text("Return to Series")').click();
+  // Wait until navigated away from home
+  await page.waitForURL(url => url.pathname !== '/', { timeout: 15000 });
+  if (screenshotFn) await screenshotFn('reconnect-returned', page);
+}
+
 // ===== Series Creation via Challenge Flow =====
 
 // Lobby and Setup selectors
 export const lobbySelectors = {
   // Lobby table buttons
-  openingDuelBtn: '.lobby__app__content button:has-text("Opening Duel"), .lobby__start button:has-text("Opening Duel")',
+  openingDuelBtn: '.lobby__start .lobby__start__button--openingDuel',
 
   // Setup modal
   setupModal: '.game-setup, .modal-content',
@@ -385,8 +471,8 @@ export async function createSeriesChallenge(
   await player1.waitForLoadState('networkidle');
   await abortExistingGames(player1);
 
-  // Step 2: Click "Opening Duel" button in lobby
-  const openingDuelBtn = player1.locator('.lobby__start button:has-text("Opening Duel")').first();
+  // Step 2: Click "Opening Duel with Friend" button in lobby
+  const openingDuelBtn = player1.locator('.lobby__start .lobby__start__button--openingDuel');
   await expect(openingDuelBtn).toBeVisible({ timeout: 5000 });
   await openingDuelBtn.click();
 
@@ -395,7 +481,7 @@ export async function createSeriesChallenge(
   await expect(gameSetup).toBeVisible({ timeout: 5000 });
 
   // Select "Real time" mode (click the tab)
-  const realTimeTab = player1.locator('.game-setup .tabs-horiz span:has-text("Real time")');
+  const realTimeTab = player1.locator('.game-setup .tabs-horiz button:has-text("Real time")');
   await realTimeTab.first().click();
 
   // Wait for tab content to update
@@ -421,7 +507,7 @@ export async function createSeriesChallenge(
 
   // Search for opponent and invite them
   // Look for the search textbox in "Or invite a Lichess user" section
-  const searchBox = player1.locator('input[placeholder="Search"], input[type="text"]').last();
+  const searchBox = player1.locator('input.friend-autocomplete');
   const searchVisible = await searchBox.isVisible({ timeout: 3000 }).catch(() => false);
 
   if (searchVisible) {
@@ -507,6 +593,100 @@ export async function createSeriesChallenge(
   ]);
 
   // Wait for pick page to load on both (use .first() to handle multiple matching elements)
+  await Promise.all([
+    expect(player1.locator(selectors.seriesPick).first()).toBeVisible({ timeout: 10000 }),
+    expect(player2.locator(selectors.seriesPick).first()).toBeVisible({ timeout: 10000 }),
+  ]);
+
+  return seriesId;
+}
+
+/**
+ * Create series via "Opening Duel with Anyone" lobby hook matching.
+ * Both players click the button sequentially → server auto-matches → WS redirect to /series/{id}/pick.
+ * No friend search or challenge accept step needed.
+ */
+export async function createSeriesViaLobby(
+  player1: Page,
+  player2: Page,
+  p1Username: string,
+  p2Username: string,
+  screenshotFn?: ScreenshotFn,
+): Promise<string> {
+  const anyoneBtn = '.lobby__start .lobby__start__button--openingDuelAnyone';
+  const modalSubmit = '.game-setup .lobby__start__button--openingDuelAnyone';
+
+  // Widen rating range to ±1500 via localStorage (before modal reads store)
+  const widenRatingRange = async (page: Page, username: string) => {
+    await page.evaluate((u) => {
+      const key = `lobby.setup.${u}.openingDuelAnyone`;
+      const raw = localStorage.getItem(key);
+      const store = raw ? JSON.parse(raw) : {};
+      store.ratingMin = -1500;
+      store.ratingMax = 1500;
+      localStorage.setItem(key, JSON.stringify(store));
+    }, username);
+  };
+
+  // Step 1: Navigate both to lobby and clean up
+  await Promise.all([player1.goto('/'), player2.goto('/')]);
+  await Promise.all([
+    player1.waitForLoadState('networkidle'),
+    player2.waitForLoadState('networkidle'),
+  ]);
+  await abortExistingGames(player1);
+  await abortExistingGames(player2);
+
+  // Step 2: P1 — widen rating range, then create hook
+  await player1.goto('/');
+  await player1.waitForLoadState('networkidle');
+  await widenRatingRange(player1, p1Username);
+
+  await expect(player1.locator(anyoneBtn)).toBeVisible({ timeout: 5000 });
+  await player1.locator(anyoneBtn).click();
+
+  const modal1 = player1.locator('.game-setup');
+  await expect(modal1).toBeVisible({ timeout: 5000 });
+  if (screenshotFn) await screenshotFn('p1-modal', player1);
+  await player1.locator(modalSubmit).click();
+
+  // Wait for modal to close (hook created, waiting for match)
+  await expect(modal1).not.toBeVisible({ timeout: 10000 });
+  if (screenshotFn) await screenshotFn('p1-hook-waiting', player1);
+
+  // Step 3: P2 — widen rating range, then create hook (server will auto-match)
+  await player2.goto('/');
+  await player2.waitForLoadState('networkidle');
+  await widenRatingRange(player2, p2Username);
+
+  await expect(player2.locator(anyoneBtn)).toBeVisible({ timeout: 5000 });
+  await player2.locator(anyoneBtn).click();
+
+  const modal2 = player2.locator('.game-setup');
+  await expect(modal2).toBeVisible({ timeout: 5000 });
+  if (screenshotFn) await screenshotFn('p2-modal', player2);
+  await player2.locator(modalSubmit).click();
+
+  // Step 4: Both wait for redirect to /series/{id}/pick
+  await Promise.all([
+    player1.waitForURL(/\/series\/\w+\/pick/, { timeout: 30000 }),
+    player2.waitForURL(/\/series\/\w+\/pick/, { timeout: 30000 }),
+  ]);
+  if (screenshotFn) {
+    await screenshotFn('p1-redirected', player1);
+    await screenshotFn('p2-redirected', player2);
+  }
+
+  // Step 5: Extract and verify series ID
+  const match1 = player1.url().match(/\/series\/(\w+)/);
+  const match2 = player2.url().match(/\/series\/(\w+)/);
+  const seriesId = match1?.[1] || '';
+
+  if (!seriesId || seriesId !== match2?.[1]) {
+    throw new Error(`Series ID mismatch: P1=${match1?.[1]}, P2=${match2?.[1]}`);
+  }
+
+  // Wait for pick page to load on both
   await Promise.all([
     expect(player1.locator(selectors.seriesPick).first()).toBeVisible({ timeout: 10000 }),
     expect(player2.locator(selectors.seriesPick).first()).toBeVisible({ timeout: 10000 }),
@@ -619,83 +799,46 @@ export async function getUsername(page: Page): Promise<string> {
 }
 
 /**
- * Full game state from Board API including player colors
+ * Full game state including player colors
  */
 export interface GameFullState {
   initialFen: string;
-  moves: string;
-  whitePlayer: string;  // Username of white player
-  blackPlayer: string;  // Username of black player
+  moves: string;          // SAN format (space-separated)
+  whitePlayer: string;    // Username of white player
+  blackPlayer: string;    // Username of black player
 }
 
 /**
- * Get current game state via Board API streaming
- * Returns the initial FEN, moves, and player color assignments
- * Note: Uses timeout since streaming endpoint never closes
+ * Get current game state via Game Export API
+ * Returns the initial FEN, moves (SAN), and player color assignments
+ * Uses the public game export endpoint (no Board API / auth token required)
  */
-export async function getGameStateViaApi(
+export async function getGameState(
   page: Page,
-  username: string,
   gameId: string
 ): Promise<GameFullState> {
-  const token = `lip_${username.toLowerCase()}`;
-  const url = `http://localhost:8080/api/board/game/stream/${gameId}`;
+  const url = `http://localhost:8080/game/export/${gameId}`;
 
-  // Use fetch with AbortController for timeout on streaming response
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 5000);
+  const response = await page.request.get(url, {
+    headers: { Accept: 'application/json' },
+  });
 
-  try {
-    const response = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/x-ndjson',
-      },
-      signal: controller.signal,
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to get game state: ${response.status}`);
-    }
-
-    // Read only the first chunk (gameFull event)
-    const reader = response.body?.getReader();
-    if (!reader) {
-      throw new Error('No response body');
-    }
-
-    const decoder = new TextDecoder();
-    let buffer = '';
-
-    // Read until we get a complete first line
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const newlineIndex = buffer.indexOf('\n');
-      if (newlineIndex !== -1) {
-        // Got the first complete line
-        const firstLine = buffer.slice(0, newlineIndex);
-        reader.cancel(); // Stop reading
-        const gameFull = JSON.parse(firstLine);
-        return {
-          initialFen: gameFull.initialFen || 'startpos',
-          moves: gameFull.state?.moves || '',
-          whitePlayer: gameFull.white?.id?.toLowerCase() || gameFull.white?.name?.toLowerCase() || '',
-          blackPlayer: gameFull.black?.id?.toLowerCase() || gameFull.black?.name?.toLowerCase() || '',
-        };
-      }
-    }
-
-    throw new Error('Stream ended without data');
-  } finally {
-    clearTimeout(timeoutId);
+  if (!response.ok()) {
+    throw new Error(`Failed to get game state: ${response.status()}`);
   }
+
+  const data = await response.json();
+  return {
+    initialFen: data.initialFen || 'startpos',
+    moves: data.moves || '',
+    whitePlayer: data.players?.white?.user?.id?.toLowerCase() || '',
+    blackPlayer: data.players?.black?.user?.id?.toLowerCase() || '',
+  };
 }
 
 /**
  * Compute current FEN by applying moves to initial FEN
+ * Supports SAN format (from Game Export API)
  */
 export function computeCurrentFen(initialFen: string, moves: string): string {
   const chess = new Chess();
@@ -705,14 +848,11 @@ export function computeCurrentFen(initialFen: string, moves: string): string {
     chess.load(initialFen);
   }
 
-  // Apply moves (space-separated UCI notation)
+  // Apply moves (space-separated SAN notation from Game Export API)
   if (moves) {
     const moveList = moves.trim().split(' ').filter(m => m);
-    for (const uci of moveList) {
-      const from = uci.slice(0, 2);
-      const to = uci.slice(2, 4);
-      const promotion = uci.length > 4 ? uci.slice(4) : undefined;
-      chess.move({ from, to, promotion });
+    for (const san of moveList) {
+      chess.move(san);
     }
   }
 
@@ -720,43 +860,54 @@ export function computeCurrentFen(initialFen: string, moves: string): string {
 }
 
 /**
- * Make a move using the Board API
- * This is more reliable than UI clicking
+ * Make a move by clicking on the chessboard (click-click pattern)
+ * Clicks the source square, then the destination square.
  *
- * @param page - Playwright page
- * @param username - Username to get token (e.g., 'elena' -> 'lip_elena')
- * @param uci - UCI move string (e.g., 'e2e4', 'g1f3')
+ * @param page - Playwright page (must be on a game page)
+ * @param from - Source square key (e.g., 'e2')
+ * @param to - Destination square key (e.g., 'e4')
  */
-export async function makeMoveViaApi(
+export async function makeMoveViaUI(
   page: Page,
-  username: string,
-  uci: string
-): Promise<boolean> {
-  const gameId = getGameIdFromUrl(page.url());
-  if (!gameId) {
-    throw new Error('Could not extract game ID from URL');
+  from: string,
+  to: string
+): Promise<void> {
+  const board = page.locator('cg-board');
+  const bounds = await board.boundingBox();
+  if (!bounds) {
+    throw new Error('Could not get chessboard bounding box');
   }
 
-  const token = `lip_${username.toLowerCase()}`;
-  const url = `http://localhost:8080/api/board/game/${gameId}/move/${uci}`;
+  // Determine board orientation from chessground DOM class
+  const cgWrap = page.locator('.cg-wrap');
+  const asWhite = await cgWrap.evaluate(el => el.classList.contains('orientation-white'));
 
-  const response = await page.request.post(url, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
-
-  if (!response.ok()) {
-    const body = await response.text();
-    console.log(`[makeMoveViaApi] FAILED: ${url} token=${token} status=${response.status()} body=${body}`);
+  function squareCenter(key: string) {
+    const file = key.charCodeAt(0) - 97; // 'a'=0 .. 'h'=7
+    const rank = parseInt(key[1]) - 1;   // '1'=0 .. '8'=7
+    const df = asWhite ? file : 7 - file;
+    const dr = asWhite ? 7 - rank : rank;
+    return {
+      x: bounds.x + (df + 0.5) * bounds.width / 8,
+      y: bounds.y + (dr + 0.5) * bounds.height / 8,
+    };
   }
 
-  return response.ok();
+  const fromPos = squareCenter(from);
+  const toPos = squareCenter(to);
+
+  // Click source square (selects the piece)
+  await page.mouse.click(fromPos.x, fromPos.y);
+  await page.waitForTimeout(200);
+
+  // Click destination square (completes the move)
+  await page.mouse.click(toPos.x, toPos.y);
+  await page.waitForTimeout(300);
 }
 
 /**
  * Check if it's our turn to move
- * Uses Board API streaming to get accurate current game state and color assignment
+ * Uses Game Export API to get current game state and color assignment
  */
 export async function isMyTurn(
   page: Page,
@@ -766,7 +917,7 @@ export async function isMyTurn(
   if (!gameId) return true; // Assume it's our turn if we can't determine
 
   try {
-    const gameState = await getGameStateViaApi(page, username, gameId);
+    const gameState = await getGameState(page, gameId);
     const currentFen = computeCurrentFen(gameState.initialFen, gameState.moves);
     const chess = new Chess(currentFen);
     const turnColor = chess.turn(); // 'w' or 'b'
@@ -782,126 +933,116 @@ export async function isMyTurn(
 }
 
 /**
- * Make any legal move on the board using Board API
- * Uses Board API streaming to get current game state, then chess.js to compute legal moves
+ * Make any legal move on the board by clicking the chessboard
+ * Uses Game Export API to get current game state, chess.js to compute legal moves,
+ * then clicks the board at the correct coordinates.
+ *
+ * Includes retry logic: the Game Export API may return slightly stale data
+ * (e.g., opponent's move not yet reflected). We verify our turn by checking
+ * board orientation (from URL) against chess.turn().
  */
-export async function makeAnyMove(page: Page, username?: string): Promise<void> {
+export async function makeAnyMove(page: Page, _username?: string): Promise<void> {
   // Wait for board to be ready
   await expect(page.locator(gameSelectors.board)).toBeVisible({ timeout: 5000 });
 
-  // Get username if not provided
-  const user = username || (await getUsername(page));
   const gameId = getGameIdFromUrl(page.url());
-
-  if (!user || !gameId) {
-    throw new Error(`Could not determine username (${user}) or gameId (${gameId})`);
+  if (!gameId) {
+    throw new Error(`Could not determine gameId from URL: ${page.url()}`);
   }
 
-  // Get current game state via Board API
-  const { initialFen, moves } = await getGameStateViaApi(page, user, gameId);
+  // Determine our color from chessground board orientation
+  const cgWrap = page.locator('.cg-wrap');
+  const weAreWhite = await cgWrap.evaluate(el => el.classList.contains('orientation-white'));
+  const ourColor = weAreWhite ? 'w' : 'b';
 
-  // Compute current FEN by applying moves to initial FEN
-  const currentFen = computeCurrentFen(initialFen, moves);
+  // Retry loop: wait until the Game Export API shows it's our turn
+  let currentFen = '';
+  let legalMoves: ReturnType<Chess['moves']> = [];
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const { initialFen, moves } = await getGameState(page, gameId);
+    currentFen = computeCurrentFen(initialFen, moves);
+    const chess = new Chess(currentFen);
 
-  // Use chess.js to get legal moves from current position
-  const chess = new Chess(currentFen);
-  const legalMoves = chess.moves({ verbose: true });
+    if (chess.turn() === ourColor) {
+      legalMoves = chess.moves({ verbose: true });
+      break;
+    }
+
+    // Not our turn yet — API may be stale, wait and retry
+    console.log(`[makeAnyMove] Not our turn yet (attempt ${attempt + 1}), waiting...`);
+    await page.waitForTimeout(500);
+  }
 
   if (legalMoves.length === 0) {
-    throw new Error('No legal moves available');
+    throw new Error(`No legal moves available or not our turn. gameId=${gameId}, fen=${currentFen}`);
   }
 
-  // Make the first legal move
+  // Make the first legal move via UI click
   const move = legalMoves[0];
-  const uci = move.from + move.to + (move.promotion || '');
+  console.log(`[makeAnyMove] gameId=${gameId}, currentFen=${currentFen}, move=${move.from}${move.to}`);
 
-  console.log(`[makeAnyMove] user=${user}, gameId=${gameId}, currentFen=${currentFen}, move=${uci}`);
+  await makeMoveViaUI(page, move.from, move.to);
+}
 
-  const success = await makeMoveViaApi(page, user, uci);
-  if (!success) {
-    throw new Error(`Move ${uci} rejected by API for ${user} (gameId=${gameId})`);
-  }
+/**
+ * Resign the current game via UI button clicks
+ * Clicks the resign button, then confirms in the dialog.
+ * Note: Both players must have moved at least once before resign is available.
+ */
+export async function resignGame(page: Page): Promise<void> {
+  const gameId = getGameIdFromUrl(page.url());
+  console.log(`[resignGame] gameId=${gameId}`);
+
+  // Click the resign button (flag icon)
+  const resignBtn = page.locator(gameSelectors.resignBtn);
+  await expect(resignBtn).toBeVisible({ timeout: 5000 });
+  await resignBtn.click();
+
+  // Click confirm in the act-confirm dialog
+  const confirmBtn = page.locator(gameSelectors.resignConfirm);
+  await expect(confirmBtn).toBeVisible({ timeout: 3000 });
+  await confirmBtn.click();
+
+  await page.waitForTimeout(500);
+}
+
+/**
+ * Offer a draw via UI button clicks
+ * Clicks the draw button, then confirms in the dialog.
+ */
+export async function offerDrawViaUI(page: Page): Promise<void> {
+  const gameId = getGameIdFromUrl(page.url());
+  console.log(`[offerDrawViaUI] gameId=${gameId}`);
+
+  // Click the draw button (½ icon)
+  const drawBtn = page.locator(gameSelectors.drawOfferBtn);
+  await expect(drawBtn).toBeVisible({ timeout: 5000 });
+  await drawBtn.click();
+
+  // Click confirm in the act-confirm dialog
+  const confirmBtn = page.locator(gameSelectors.drawConfirm);
+  await expect(confirmBtn).toBeVisible({ timeout: 3000 });
+  await confirmBtn.click();
 
   await page.waitForTimeout(300);
 }
 
 /**
- * Resign the current game via Board API
- * Note: Both players must have moved at least once before resign is available
+ * Accept a draw offer via UI
+ * When the opponent offers a draw, a question prompt appears with yes/no buttons.
+ * Clicks the 'yes' button in the question prompt.
  */
-export async function resignGame(page: Page, username: string): Promise<boolean> {
+export async function acceptDrawViaUI(page: Page): Promise<void> {
   const gameId = getGameIdFromUrl(page.url());
-  if (!gameId) {
-    throw new Error('Could not extract game ID from URL');
-  }
+  console.log(`[acceptDrawViaUI] gameId=${gameId}`);
 
-  const token = `lip_${username.toLowerCase()}`;
-  const url = `http://localhost:8080/api/board/game/${gameId}/resign`;
+  // Wait for the draw offer question prompt to appear
+  // The question prompt renders yes/no as <a> elements: <div class="question"><a class="yes" ...></div>
+  const acceptBtn = page.locator('.question a.yes');
+  await expect(acceptBtn).toBeVisible({ timeout: 10000 });
+  await acceptBtn.click();
 
-  console.log(`[resignGame] user=${username}, gameId=${gameId}, url=${url}`);
-
-  const response = await page.request.post(url, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
-
-  const body = await response.text();
-  console.log(`[resignGame] user=${username}, status=${response.status()}, body=${body}`);
-
-  return response.ok();
-}
-
-/**
- * Offer or accept a draw via Board API
- * Both players sending draw/yes results in a draw
- */
-export async function sendDrawViaApi(page: Page, username: string): Promise<boolean> {
-  const gameId = getGameIdFromUrl(page.url());
-  if (!gameId) {
-    throw new Error('Could not extract game ID from URL');
-  }
-
-  const token = `lip_${username.toLowerCase()}`;
-  const url = `http://localhost:8080/api/board/game/${gameId}/draw/yes`;
-
-  console.log(`[sendDrawViaApi] user=${username}, gameId=${gameId}, url=${url}`);
-
-  const response = await page.request.post(url, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
-
-  const body = await response.text();
-  console.log(`[sendDrawViaApi] user=${username}, status=${response.status()}, body=${body}`);
-
-  return response.ok();
-}
-
-/**
- * Offer a draw (deprecated - use sendDrawViaApi)
- */
-export async function offerDraw(page: Page): Promise<void> {
-  // Click draw button to show confirmation
-  const drawBtn = page.locator('button.fbt:has([data-icon])').filter({ hasText: /½|draw/i }).first();
-  if (await drawBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
-    await drawBtn.click();
-    // Confirm draw offer
-    const confirmBtn = page.locator('.act-confirm button.fbt.yes');
-    await expect(confirmBtn).toBeVisible({ timeout: 3000 });
-    await confirmBtn.click();
-  }
-}
-
-/**
- * Accept a draw offer (deprecated - use sendDrawViaApi)
- */
-export async function acceptDraw(page: Page): Promise<void> {
-  // Look for draw accept button (appears when opponent offered)
-  const drawAcceptBtn = page.locator('button.draw-yes, button:has-text("Accept draw")');
-  await expect(drawAcceptBtn.first()).toBeVisible({ timeout: 10000 });
-  await drawAcceptBtn.first().click();
+  await page.waitForTimeout(500);
 }
 
 /**
@@ -994,15 +1135,14 @@ export async function playBothMoves(
     await player2.waitForURL((url) => url.pathname.includes(gameId), { timeout: 10000 });
   }
 
-  // Get current game state including player color assignments
-  const gameState = await getGameStateViaApi(player1, p1Username, gameId);
+  // Get current game state including player color assignments (via Game Export API)
+  const gameState = await getGameState(player1, gameId);
   const currentFen = computeCurrentFen(gameState.initialFen, gameState.moves);
   const chess = new Chess(currentFen);
   const turnColor = chess.turn(); // 'w' or 'b'
 
   // Determine which player is which color
   const p1IsWhite = gameState.whitePlayer === p1Username.toLowerCase();
-  const p2IsWhite = gameState.whitePlayer === p2Username.toLowerCase();
 
   // Determine who should move first based on turn and color assignment
   const whiteToMove = turnColor === 'w';
@@ -1011,15 +1151,19 @@ export async function playBothMoves(
   console.log(`[playBothMoves] gameId=${gameId}, white=${gameState.whitePlayer}, black=${gameState.blackPlayer}, turn=${turnColor}, p1IsWhite=${p1IsWhite}, p1ToMove=${p1ToMove}`);
 
   // Make moves in correct order based on who should move
+  // Wait between moves to ensure the Game Export API reflects the first move
+  // and the opponent's board has been updated via WS
   if (p1ToMove) {
-    await makeAnyMove(player1, p1Username);
-    await makeAnyMove(player2, p2Username);
+    await makeAnyMove(player1);
+    await player2.waitForTimeout(1000);
+    await makeAnyMove(player2);
   } else {
-    await makeAnyMove(player2, p2Username);
-    await makeAnyMove(player1, p1Username);
+    await makeAnyMove(player2);
+    await player1.waitForTimeout(1000);
+    await makeAnyMove(player1);
   }
 
-  await player1.waitForTimeout(300);
+  await player1.waitForTimeout(500);
 }
 
 /**
@@ -1045,20 +1189,18 @@ export async function playOneGame(
   // Both players make one move (required for resign/draw)
   await playBothMoves(player1, player2, p1Username, p2Username);
 
-  // Execute the result
+  // Execute the result via UI interactions
   switch (result) {
     case 'p1-resign':
-      await resignGame(player1, p1Username);
+      await resignGame(player1);
       break;
     case 'p2-resign':
-      await resignGame(player2, p2Username);
+      await resignGame(player2);
       break;
     case 'draw':
-      // Both players send draw/yes
-      await Promise.all([
-        sendDrawViaApi(player1, p1Username),
-        sendDrawViaApi(player2, p2Username),
-      ]);
+      // P1 offers draw, P2 accepts (sequential UI flow)
+      await offerDrawViaUI(player1);
+      await acceptDrawViaUI(player2);
       break;
   }
 
@@ -1188,34 +1330,43 @@ export async function isSeriesAborted(
 /**
  * Wait for next game to start after a game ends
  *
- * Phase transitions:
- * - PLAY →|winner| SEL (Selecting: 패자가 자기 남은 픽에서 선택)
- * - PLAY →|draw| RS (RandomSelecting: 남은 픽 풀에서 랜덤, 5초 카운트다운)
- * - PLAY →|series done| FIN (시리즈 종료, 리다이렉트 없음)
+ * Phase transitions (with Resting):
+ * - PLAY → RESTING (30s) → |winner| SEL (Selecting) → 5s showcase → PLAY
+ * - PLAY → RESTING (30s) → |draw| RS (RandomSelecting: roulette + 5s showcase) → PLAY
+ * - PLAY →|series done| FIN (no resting)
  *
- * UI classes:
- * - .series-pick.random-selecting: RandomSelecting (5초 후 자동 리다이렉트)
- * - Selecting: 양측 동일한 그리드 표시 (패자만 클릭 가능, 승자는 disabled)
- *   - 패자: confirm 후 3초 cancel 윈도우 → WS phase 이벤트로 게임 리다이렉트
- *   - 승자: 버튼 없음, WS phase 이벤트로 게임 리다이렉트 대기
+ * Resting phase:
+ * - Shown on the game page as .follow-up.series-rest
+ * - "Next Game" button → both confirm → 3s countdown → phase transition
+ * - 30s timeout → auto-transition (no confirm needed)
+ *
+ * Showcase:
+ * - After RandomSelecting roulette or Selecting confirm, a 5s showcase displays
+ *   the selected opening (enlarged card + "{player}'s {opening} selected!" text)
+ * - The showcase renders with .series-pick.random-selecting class
+ *
+ * @param skipResting - If true, don't click "Next Game" (let timeout handle it)
  */
 export async function waitForNextGame(
   player1: Page,
   player2: Page,
   _loserPage: Page | null,  // Deprecated, kept for API compatibility
   previousGameId?: string,
-  timeout = 30000,
+  timeout = 45000,
   screenshot?: ScreenshotFn,
-  gameNum?: number
+  gameNum?: number,
+  skipResting = false
 ): Promise<void> {
-  console.log(`[waitForNextGame] previousGameId=${previousGameId}, starting...`);
+  console.log(`[waitForNextGame] previousGameId=${previousGameId}, skipResting=${skipResting}, starting...`);
 
   const startTime = Date.now();
   let hasSelected = false; // 패자가 오프닝을 선택했는지 추적
-  let screenshotTaken = { selecting: false, randomSelecting: false }; // prevent duplicate screenshots
+  let screenshotTaken = { selecting: false, randomSelecting: false, showcase: false, resting: false }; // prevent duplicate screenshots
 
   // Helper: 한 플레이어의 상태를 체크하고 필요시 행동
   const handlePlayer = async (page: Page, label: string, otherPage: Page): Promise<void> => {
+    let restingConfirmed = false;
+
     while (Date.now() - startTime < timeout) {
       const path = new URL(page.url()).pathname;
 
@@ -1226,19 +1377,49 @@ export async function waitForNextGame(
         return;
       }
 
+      // Resting phase: 이전 게임 페이지에서 Rest UI 표시
+      if (gameMatch && gameMatch[1] === previousGameId && !restingConfirmed) {
+        const restNextBtn = page.locator(selectors.restingConfirmBtn);
+        const isRestVisible = await restNextBtn.isVisible().catch(() => false);
+        if (isRestVisible) {
+          // Screenshot: resting UI
+          if (screenshot && !screenshotTaken.resting) {
+            screenshotTaken.resting = true;
+            await screenshot(`game${gameNum}-resting`, page);
+          }
+          if (!skipResting) {
+            console.log(`[waitForNextGame] ${label} clicking "Next Game" in Resting phase`);
+            await restNextBtn.click();
+            restingConfirmed = true;
+          }
+          await page.waitForTimeout(500);
+          continue;
+        }
+      }
+
       // Pick 페이지에 있을 때
       if (/\/series\/\w+\/pick/.test(path)) {
         // UI가 렌더링될 때까지 잠시 대기
         await page.waitForTimeout(300);
 
-        // 1. RandomSelecting: 카운트다운 중, 행동 불필요
+        // 1. RandomSelecting or Showcase: roulette animation / showcase countdown, 행동 불필요
+        //    Both RandomSelecting (roulette + result) and Selecting showcase render with .random-selecting
         const isRandomSelecting = await page.locator(selectors.randomSelecting).isVisible().catch(() => false);
         if (isRandomSelecting) {
-          console.log(`[waitForNextGame] ${label} in RandomSelecting (countdown)`);
-          // Screenshot: random selecting (draw case)
-          if (screenshot && !screenshotTaken.randomSelecting) {
-            screenshotTaken.randomSelecting = true;
-            await screenshot(`game${gameNum}-random-selecting`, page);
+          // Check if showcase is showing (enlarged card + "{player}'s {opening} selected!")
+          const isShowcase = await page.locator(selectors.showcase).isVisible().catch(() => false);
+          if (isShowcase) {
+            console.log(`[waitForNextGame] ${label} in Showcase (5s countdown)`);
+            if (screenshot && !screenshotTaken.showcase) {
+              screenshotTaken.showcase = true;
+              await screenshot(`game${gameNum}-showcase`, page);
+            }
+          } else {
+            console.log(`[waitForNextGame] ${label} in RandomSelecting (roulette)`);
+            if (screenshot && !screenshotTaken.randomSelecting) {
+              screenshotTaken.randomSelecting = true;
+              await screenshot(`game${gameNum}-random-selecting`, page);
+            }
           }
           await page.waitForTimeout(500);
           continue;
@@ -1261,7 +1442,7 @@ export async function waitForNextGame(
             }
             await selectNextOpening(page, 0);
             hasSelected = true;
-            // After confirm, 3s cancel window → WS phase event → redirect
+            // After confirm, 3s cancel window → WS phase event → 5s showcase → redirect
             continue;
           }
         }
@@ -1442,7 +1623,7 @@ export async function completeBanPickPhase(
     await screenshot('random-selecting', player1);
   }
 
-  // Wait for game to start (after RandomSelecting 5s countdown)
+  // Wait for game to start (after RandomSelecting ~13s: roulette animation + 5s showcase countdown)
   await waitForGamePage(player1, gameWaitTimeout);
   await waitForGamePage(player2, gameWaitTimeout);
 
@@ -1521,14 +1702,38 @@ export async function executeSeriesResult(
     }
 
     // Wait for next game if not the last game
+    // Includes resting phase (~5s: both confirm + 3s countdown) +
+    // selecting (~10s: confirm + countdown + 5s showcase) or randomSelecting (~13s: roulette + 5s showcase)
     if (!isLastGame) {
       await player1.waitForTimeout(500);
-      await waitForNextGame(player1, player2, null, lastGameId, 30000, screenshot, gameNum + 1);
+      await waitForNextGame(player1, player2, null, lastGameId, 45000, screenshot, gameNum + 1);
     }
   }
 
+  // Handle final resting phase (last game now enters Resting for recap)
+  await player1.waitForTimeout(500);
+  await Promise.all([
+    waitForRestingUI(player1),
+    waitForRestingUI(player2),
+  ]);
+
+  if (screenshot) {
+    await Promise.all([
+      screenshot('final-resting-p1', player1),
+      screenshot('final-resting-p2', player2),
+    ]);
+  }
+
+  // Both players confirm ("View result" button)
+  await Promise.all([
+    confirmNextInResting(player1),
+    confirmNextInResting(player2),
+  ]);
+
+  // Wait for countdown (3s) + transition to finished
+  await player1.waitForTimeout(5000);
+
   // Verify series finished
-  await player1.waitForTimeout(1000);
   const finished = await isSeriesFinished(player1, seriesId);
   if (!finished) {
     throw new Error(`Series ${seriesId} did not finish after ${outcomes.length} games`);
@@ -1582,6 +1787,43 @@ export async function confirmSeriesForfeit(page: Page): Promise<void> {
   const confirmBtn = page.locator(gameSelectors.seriesForfeitConfirm);
   await expect(confirmBtn).toBeVisible({ timeout: 5000 });
   await confirmBtn.click();
+}
+
+/**
+ * Get full series data from API for detailed assertions
+ */
+export async function getSeriesData(
+  page: Page,
+  seriesId: string
+): Promise<{
+  status: number;
+  phase: number;
+  winner: number | null;
+  scores: [number, number];
+  gamesCount: number;
+  forfeitBy: number | null;
+} | null> {
+  const response = await page.request.get(`http://localhost:8080/series/${seriesId}`, {
+    headers: { Accept: 'application/json' },
+  });
+
+  if (!response.ok()) return null;
+
+  const data = await response.json();
+  const statusId = typeof data.status === 'number' ? data.status : data.status?.id;
+  const phaseId = typeof data.phase === 'number' ? data.phase : data.phase?.id;
+  const players = data.players as Array<{ score?: number }>;
+  const p1Score = players[0]?.score ?? 0;
+  const p2Score = players[1]?.score ?? 0;
+
+  return {
+    status: statusId,
+    phase: phaseId,
+    winner: data.winner ?? null,
+    scores: [p1Score, p2Score],
+    gamesCount: data.games?.length ?? 0,
+    forfeitBy: data.forfeitBy ?? null,
+  };
 }
 
 /**
