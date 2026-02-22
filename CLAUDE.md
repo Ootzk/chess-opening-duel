@@ -100,24 +100,48 @@ flowchart LR
 |--------|------|------|
 | GET | `/series/{id}` | 시리즈 상태 조회 (JSON) |
 | GET | `/series/{id}/pick` | 밴픽 페이지 (HTML) |
-| POST | `/series/{id}/setPicks` | 픽 설정 |
+| GET | `/series/{id}/random-selecting` | 랜덤 선택 애니메이션 페이지 |
+| GET | `/series/{id}/finished` | 시리즈 결과 페이지 |
+| GET | `/api/series/presets` | 기본 오프닝 프리셋 목록 |
+| POST | `/series/{id}/picks` | 픽 설정 |
 | POST | `/series/{id}/confirmPicks` | 픽 확정 |
+| POST | `/series/{id}/cancelConfirmPicks` | 픽 확정 취소 |
 | POST | `/series/{id}/timeoutPicks` | 픽 타임아웃 (랜덤 채우기) |
-| POST | `/series/{id}/setBans` | 밴 설정 |
+| POST | `/series/{id}/bans` | 밴 설정 |
 | POST | `/series/{id}/confirmBans` | 밴 확정 |
+| POST | `/series/{id}/cancelConfirmBans` | 밴 확정 취소 |
 | POST | `/series/{id}/timeoutBans` | 밴 타임아웃 (랜덤 채우기) |
-| POST | `/series/{id}/selectNextOpening` | 다음 오프닝 선택 (패자용) |
+| POST | `/series/{id}/selectOpening` | 다음 오프닝 선택 (패자용) |
+| POST | `/series/{id}/selectRandom` | 타임아웃 시 랜덤 오프닝 선택 |
+| POST | `/series/{id}/setSelectingPick` | Selecting phase 오프닝 미리 선택 |
+| POST | `/series/{id}/confirmSelecting` | Selecting 확정 |
+| POST | `/series/{id}/cancelConfirmSelecting` | Selecting 확정 취소 |
+| POST | `/series/{id}/confirmNext` | Resting phase 다음 게임 확정 |
+| POST | `/series/{id}/cancelConfirmNext` | Resting 확정 취소 |
+| POST | `/series/{id}/ready` | RandomSelecting 준비 완료 |
+| POST | `/series/{id}/next` | 다음 게임 시작 |
+| POST | `/series/{id}/forfeit` | 시리즈 포기 |
+| POST | `/series/{id}/rematch` | 리매치 요청 |
 
 #### 핵심 파일
 ```
 repos/lila/modules/series/src/main/
-├── Series.scala          # 시리즈 모델 (Phase, maxPicks, maxBans 등)
-├── SeriesPlayer.scala    # 플레이어 모델 (confirmedPicks, confirmedBans)
+├── Series.scala          # 시리즈 모델 (Phase, Status, AI 등)
+├── SeriesPlayer.scala    # 플레이어 모델 (confirmedPicks/Bans/Next 등)
 ├── SeriesOpening.scala   # 오프닝 모델 (source, ownerIndex, usedInRound)
 ├── SeriesGame.scala      # 게임 결과 모델
-├── SeriesApi.scala       # 비즈니스 로직 (타임아웃 처리 포함)
+├── SeriesApi.scala       # 비즈니스 로직 (타임아웃, forfeit, AI 포함)
+├── SeriesRepo.scala      # DB 접근 (atomic operations)
 ├── SeriesJson.scala      # JSON 직렬화
-└── OpeningPresets.scala  # 10개 오프닝 프리셋 정의
+├── SeriesSocket.scala    # WebSocket 관리 (RoomSocket 기반)
+├── SeriesTimeouts.scala  # 서버사이드 phase 타임아웃 스케줄러
+├── SeriesUi.scala        # Scala UI 헬퍼
+├── BsonHandlers.scala    # BSON 직렬화
+├── OpeningPresets.scala   # 10개 기본 오프닝 프리셋
+├── OpeningPool.scala      # 유저별 오프닝 풀 모델
+├── OpeningPoolRepo.scala  # 풀 DB 접근
+├── OpeningPoolApi.scala   # 풀 비즈니스 로직
+└── Env.scala              # 모듈 와이어링 (컬렉션, 이벤트 구독)
 
 repos/lila/ui/series/
 ├── src/ctrl.ts           # 프론트엔드 컨트롤러
@@ -136,8 +160,8 @@ chess-opening-duel/                 # lila-docker 포크 (메인)
 ├── lila-docker                     # 실행 스크립트
 └── repos/                          # Git submodules
     ├── lila/                       → chess-opening-duel-lila (Scala, 메인 서버)
-    ├── scalachess/                 → chess-opening-duel-scalachess (체스 엔진)
-    └── chessground/                → chess-opening-duel-chessground (보드 UI)
+    ├── scalachess/                 → lichess-org/scalachess (체스 엔진, 원본)
+    └── chessground/                → lichess-org/chessground (보드 UI, 원본)
 ```
 
 ## 개발 명령어
