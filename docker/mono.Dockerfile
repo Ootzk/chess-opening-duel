@@ -38,14 +38,24 @@ FROM sbtscala/scala-sbt:eclipse-temurin-alpine-25_36_1.11.6_3.7.3 AS lilawsbuild
 
 COPY repos/lila-ws /lila-ws
 WORKDIR /lila-ws
+RUN rm -f .git 2>/dev/null; git init 2>/dev/null || true
 RUN sbt stage
+
+##################################################################################
+FROM sbtscala/scala-sbt:eclipse-temurin-alpine-25_36_1.11.6_3.7.3 AS lilafishnetbuilder
+
+COPY repos/lila-fishnet /lila-fishnet
+WORKDIR /lila-fishnet
+RUN rm -f .git 2>/dev/null; git init 2>/dev/null || true
+RUN sbt app/stage
 
 ##################################################################################
 FROM sbtscala/scala-sbt:eclipse-temurin-alpine-25_36_1.11.6_3.7.3 AS lilabuilder
 
 COPY --from=node /lila /lila
 WORKDIR /lila
-RUN TZ=UTC git log -1 --date=iso-strict-local --pretty='format:app.version.commit = "%H"%napp.version.date = "%ad"%napp.version.message = """%s"""%n' | tee conf/version.conf
+RUN rm -f .git 2>/dev/null; git init 2>/dev/null || true
+RUN TZ=UTC git log -1 --date=iso-strict-local --pretty='format:app.version.commit = "%H"%napp.version.date = "%ad"%napp.version.message = """%s"""%n' 2>/dev/null | tee conf/version.conf || true
 RUN ./lila.sh stage
 
 ##################################################################################
@@ -59,6 +69,7 @@ RUN apt update \
     && apt install -y \
         caddy \
         curl \
+        musl \
         python3-pip \
         redis \
         supervisor \
@@ -71,6 +82,8 @@ COPY --from=dbbuilder /scripts /scripts
 COPY --from=dbbuilder /seeded /seeded
 RUN pip3 install -r /lila-db-seed/spamdb/requirements.txt
 COPY --from=lilawsbuilder /lila-ws/target /lila-ws/target
+COPY --from=lilafishnetbuilder /lila-fishnet/app/target /lila-fishnet/app/target
+COPY --from=niklasf/fishnet:2.12.0 /fishnet /fishnet
 COPY --from=lilabuilder /lila/bin/mongodb/indexes.js /lila/bin/mongodb/indexes.js
 COPY --from=lilabuilder /lila/target /lila/target
 COPY --from=lilabuilder /lila/public /lila/public
