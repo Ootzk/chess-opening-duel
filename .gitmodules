@@ -7,3 +7,6 @@
 [submodule "repos/lila-ws"]
 	path = repos/lila-ws
 	url = https://github.com/Ootzk/chess-opening-duel-lila-ws.git
+[submodule "repos/lila-fishnet"]
+	path = repos/lila-fishnet
+	url = https://github.com/lichess-org/lila-fishnet.git

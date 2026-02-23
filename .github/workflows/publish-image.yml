@@ -66,6 +66,12 @@ jobs:
           repository: 'Ootzk/chess-opening-duel-db-seed'
           path: 'repos/lila-db-seed'
 
+      - name: Checkout lila-fishnet
+        uses: actions/checkout@v5
+        with:
+          repository: 'lichess-org/lila-fishnet'
+          path: 'repos/lila-fishnet'
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
         with:
