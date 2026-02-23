@@ -15,7 +15,6 @@ RUN apt update \
     && apt install -y \
         curl \
         python3-pip \
-        python3-venv \
     && apt clean
 
 ENV JAVA_HOME=/opt/java/openjdk
@@ -31,7 +30,8 @@ RUN pip3 install -r spamdb/requirements.txt
 
 RUN mkdir /seeded \
     && mongod --fork --logpath /var/log/mongodb/mongod.log --dbpath /seeded \
-    && /scripts/reset-db.sh
+    && /scripts/reset-db.sh \
+    && touch /seeded/.db_initialized
 
 ##################################################################################
 FROM sbtscala/scala-sbt:eclipse-temurin-alpine-25_36_1.11.6_3.7.3 AS lilawsbuilder
@@ -69,6 +69,7 @@ RUN apt update \
 COPY --from=dbbuilder /lila-db-seed /lila-db-seed
 COPY --from=dbbuilder /scripts /scripts
 COPY --from=dbbuilder /seeded /seeded
+RUN pip3 install -r /lila-db-seed/spamdb/requirements.txt
 COPY --from=lilawsbuilder /lila-ws/target /lila-ws/target
 COPY --from=lilabuilder /lila/bin/mongodb/indexes.js /lila/bin/mongodb/indexes.js
 COPY --from=lilabuilder /lila/target /lila/target
