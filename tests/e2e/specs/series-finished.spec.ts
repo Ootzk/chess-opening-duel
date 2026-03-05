@@ -119,6 +119,27 @@ test.describe('Test 11: patricia vs adriana (Finished page + Rematch)', () => {
         await takeScreenshot('finished-ui-p2', player2);
       });
 
+      // ===== STEP 5.5: Stale Series Page Guard =====
+      await test.step('Visiting old series pages redirects to finished', async () => {
+        // 시리즈 종료 후 이전 phase 페이지 직접 방문 → finished로 리다이렉트 확인
+        // (no-cache 헤더로 인해 브라우저 뒤로가기도 서버 재요청 → 동일한 리다이렉트 발생)
+
+        // P1: pick 페이지 → finished 리다이렉트
+        await player1.goto(`/series/${seriesId}/pick`, { waitUntil: 'networkidle' });
+        await expect(player1).toHaveURL(new RegExp(`/series/${seriesId}/finished`), { timeout: 10000 });
+        await takeScreenshot('stale-pick-redirect-p1', player1);
+
+        // P1: random-selecting 페이지 → finished 리다이렉트
+        await player1.goto(`/series/${seriesId}/random-selecting`, { waitUntil: 'networkidle' });
+        await expect(player1).toHaveURL(new RegExp(`/series/${seriesId}/finished`), { timeout: 10000 });
+        await takeScreenshot('stale-random-redirect-p1', player1);
+
+        // P2도 동일
+        await player2.goto(`/series/${seriesId}/pick`, { waitUntil: 'networkidle' });
+        await expect(player2).toHaveURL(new RegExp(`/series/${seriesId}/finished`), { timeout: 10000 });
+        await takeScreenshot('stale-pick-redirect-p2', player2);
+      });
+
       // ===== STEP 6: Rematch Offer =====
       await test.step('P1 offers rematch', async () => {
         // Verify rematch button is enabled
