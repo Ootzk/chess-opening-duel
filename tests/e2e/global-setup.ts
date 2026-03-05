@@ -85,6 +85,9 @@ const users = [
   // Pair 27: elizabeth + dae (Lobby matching - Opening Duel with Anyone)
   { username: 'elizabeth', password: 'password', file: '.auth/elizabeth.json' },
   { username: 'dae', password: 'password', file: '.auth/dae.json' },
+  // Pair 29: gabriela + guang (Mobile viewport - Finished page scroll)
+  { username: 'gabriela', password: 'password', file: '.auth/gabriela.json' },
+  { username: 'guang', password: 'password', file: '.auth/guang.json' },
   // Solo: mateo (AI Opening Duel)
   { username: 'mateo', password: 'password', file: '.auth/mateo.json' },
 ];

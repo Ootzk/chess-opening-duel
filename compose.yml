@@ -50,6 +50,7 @@ services:
       - ENABLE_MONITORING=${ENABLE_MONITORING:-false}
       - ENABLE_RATE_LIMITING=${ENABLE_RATE_LIMITING:-true}
       - LILA_TEST_MODE=${LILA_TEST_MODE:-1}
+      - EXPLORER_TOKEN=${EXPLORER_TOKEN:-}
     volumes:
       - ./repos/lila:/lila
       - ./repos/pgn-viewer:/pgn-viewer
