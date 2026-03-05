@@ -90,6 +90,9 @@ export const users = {
   // Pair 27: Lobby matching (Opening Duel with Anyone)
   elizabeth: { username: 'elizabeth', password: 'password', storageState: '.auth/elizabeth.json' },
   dae: { username: 'dae', password: 'password', storageState: '.auth/dae.json' },
+  // Pair 29: Mobile viewport - Finished page scroll
+  gabriela: { username: 'gabriela', password: 'password', storageState: '.auth/gabriela.json' },
+  guang: { username: 'guang', password: 'password', storageState: '.auth/guang.json' },
   // Solo: AI Opening Duel (vs Stockfish)
   mateo: { username: 'mateo', password: 'password', storageState: '.auth/mateo.json' },
 } as const;
