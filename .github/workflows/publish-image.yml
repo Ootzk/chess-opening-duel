@@ -83,7 +83,7 @@ jobs:
           name: node-assets
           path: node-assets.tar.zst
           compression-level: 0
-          retention-days: 1
+          retention-days: 7
 
   # ===========================================================================
   # Phase 1b: Build Scala artifacts (per-platform, native runners)
@@ -195,7 +195,7 @@ jobs:
           name: sbt-artifacts-${{ matrix.arch }}
           path: sbt-artifacts.tar.zst
           compression-level: 0
-          retention-days: 1
+          retention-days: 7
 
   # ===========================================================================
   # Phase 2: Assemble Docker image (per-platform)
@@ -310,7 +310,7 @@ jobs:
         with:
           name: digest-${{ matrix.arch }}
           path: /tmp/digests/*
-          retention-days: 1
+          retention-days: 7
 
   # ===========================================================================
   # Phase 3: Create multi-platform manifest
