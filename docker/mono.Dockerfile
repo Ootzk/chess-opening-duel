@@ -42,6 +42,12 @@ RUN apt update \
     && pip3 install berserk pytest \
     && mkdir -p /var/log/supervisor
 
+ENV JAVA_HOME=/opt/java/openjdk
+ENV JAVA_OPTS="-Xms4g -Xmx4g"
+ENV PATH="${JAVA_HOME}/bin:${PATH}"
+ENV LANG=C.utf8
+COPY --from=eclipse-temurin:25-jdk $JAVA_HOME $JAVA_HOME
+
 COPY --from=dbbuilder /lila-db-seed /lila-db-seed
 COPY --from=dbbuilder /scripts /scripts
 COPY --from=dbbuilder /seeded /seeded
@@ -62,12 +68,6 @@ COPY artifacts/node-public /lila/target/universal/stage/public
 COPY conf/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY conf/mono.Caddyfile /mono.Caddyfile
 COPY static /static
-
-ENV JAVA_HOME=/opt/java/openjdk
-ENV JAVA_OPTS="-Xms4g -Xmx4g"
-ENV PATH="${JAVA_HOME}/bin:${PATH}"
-ENV LANG=C.utf8
-COPY --from=eclipse-temurin:25-jdk $JAVA_HOME $JAVA_HOME
 
 ENV LILA_SITE_NAME=lila-quick
 ENV LILA_DOMAIN=localhost:8080
