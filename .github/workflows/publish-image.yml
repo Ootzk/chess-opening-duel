@@ -90,7 +90,7 @@ jobs:
   # ===========================================================================
   build-sbt:
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         include:
           - runner: ubuntu-latest
@@ -203,7 +203,7 @@ jobs:
   docker-image:
     needs: [build-node, build-sbt]
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         include:
           - runner: ubuntu-latest
